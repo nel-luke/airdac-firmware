@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      body {
+        background-color: #ffffff;
+      }
+    </style>
+    <title>ESP Captive Portal</title>
+  </head>
+  <body>
+    <h1>ESP Captive Portal</h1>
+    <p>Restarting in <span id="countdown"></span></p>
+    <script>
+      var time = 3;
+      function countdown() {
+        document.getElementById("countdown").innerText = (time--).toString();
+        if (time == 0) clearInterval(x);
+      }
+      x = setInterval(countdown, 1000);
+    </script>
+  </body>
+</html>
