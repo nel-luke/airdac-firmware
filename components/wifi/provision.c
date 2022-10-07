@@ -1,4 +1,5 @@
 #include "provision.h"
+#include "connect.h"
 #include "dns.h"
 
 #include <sys/param.h>
@@ -29,6 +30,7 @@ extern const char form_end[] asm("_binary_form_html_end");
 extern const char thank_you_start[] asm("_binary_thank_you_html_start");
 extern const char thank_you_end[] asm("_binary_thank_you_html_end");
 
+
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
 {
@@ -45,8 +47,8 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
 
 static void init_softap(const char* host_name)
 {
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    esp_netif_t *netif = esp_netif_create_default_wifi_ap();
+    ESP_ERROR_CHECK(esp_netif_set_hostname(netif, host_name));
 
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
 
@@ -60,7 +62,7 @@ static void init_softap(const char* host_name)
     };
     strcpy((char*)wifi_config.ap.ssid, host_name);
 
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
@@ -123,7 +125,6 @@ static esp_err_t post_handler(httpd_req_t *req)
 
         remaining -= ret;
         ESP_LOGI(TAG, "Sending credentials on buffer");
-        ESP_LOGI(TAG, "Received: %.*s", ret, credentials);
         xMessageBufferSend(cred_buf, credentials, ret, portMAX_DELAY);
     }
 
@@ -159,7 +160,7 @@ static httpd_handle_t start_webserver(void)
     return server;
 }
 
-void wifi_get_credentials(const char* host_name, char* ssid, char* passphrase) {
+void wifi_get_credentials(const bool poll_connected, const char* host_name, char* ssid, char* passphrase) {
     /*
     Turn off warnings from HTTP server as redirecting traffic will yield
     lots of invalid requests
@@ -169,7 +170,6 @@ void wifi_get_credentials(const char* host_name, char* ssid, char* passphrase) {
     esp_log_level_set("httpd_parse", ESP_LOG_ERROR);
 
     // Initialize Wi-Fi including netif with default config
-    esp_netif_create_default_wifi_ap();
     init_softap(host_name);
 
     cred_buf = xMessageBufferCreate(cred_buf_len);
@@ -179,7 +179,16 @@ void wifi_get_credentials(const char* host_name, char* ssid, char* passphrase) {
 
     ESP_LOGI(TAG, "Finished. Waiting for credentials.");
     char credentials[cred_buf_len];
-    size_t len = xMessageBufferReceive(cred_buf, credentials, cred_buf_len, portMAX_DELAY);
+    size_t len;
+    do {
+        len = xMessageBufferReceive(cred_buf, credentials, cred_buf_len, 1000 / portTICK_PERIOD_MS);
+
+        if (poll_connected && wifi_poll_connected()) {
+            ESP_LOGI(TAG, "WiFi connected with old credentials. Restarting system.");
+            esp_restart();
+        }
+    } while (len == 0);
+    ESP_LOGI(TAG, "Received: %.*s", len, credentials);
 
     char* passw_index = strstr(credentials, "passw=");
     size_t ssid_len = passw_index - credentials;

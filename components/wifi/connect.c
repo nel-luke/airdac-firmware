@@ -34,6 +34,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
             ESP_LOGI(TAG, "retry to connect to the AP");
         } else {
             xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
+            s_retry_num = 0;
         }
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
@@ -46,13 +47,6 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 esp_err_t wifi_connect(const char* ssid, const char* password)
 {
     s_wifi_event_group = xEventGroupCreate();
-
-    ESP_ERROR_CHECK(esp_netif_init());
-
-    esp_netif_create_default_wifi_sta();
-
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
     esp_event_handler_instance_t instance_any_id;
     esp_event_handler_instance_t instance_got_ip;
@@ -72,7 +66,8 @@ esp_err_t wifi_connect(const char* ssid, const char* password)
     strcpy((char*)wifi_config.sta.password, password);
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
-    ESP_ERROR_CHECK(esp_wifi_start() );
+    ESP_ERROR_CHECK(esp_wifi_start());
+//    ESP_ERROR_CHECK(esp_wifi_connect());
 
     ESP_LOGI(TAG, "Waiting for connection.");
 
@@ -80,8 +75,7 @@ esp_err_t wifi_connect(const char* ssid, const char* password)
      * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
     EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
                                            WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-                                           pdFALSE,
-                                           pdFALSE,
+                                           pdTRUE, pdFALSE,
                                            portMAX_DELAY);
 
     /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
@@ -89,9 +83,18 @@ esp_err_t wifi_connect(const char* ssid, const char* password)
     if (bits & WIFI_CONNECTED_BIT) {
         return ESP_OK;
     } else if (bits & WIFI_FAIL_BIT) {
+        esp_wifi_stop();
         return ESP_ERR_WIFI_TIMEOUT;
     } else {
         ESP_LOGE(TAG, "UNEXPECTED EVENT");
         abort();
     }
+}
+
+bool wifi_poll_connected() {
+    EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
+                                           WIFI_CONNECTED_BIT,
+                                           pdTRUE, pdFALSE,
+                                           1000 / portTICK_PERIOD_MS);
+    return bits & WIFI_CONNECTED_BIT;
 }
