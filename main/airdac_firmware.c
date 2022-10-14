@@ -1,6 +1,6 @@
 #include "misc.h"
 #include "wifi.h"
-#include "dlna.h"
+#include "upnp.h"
 
 #include <string.h>
 
@@ -11,6 +11,9 @@
 #include <esp_wifi.h>
 #include <driver/gpio.h>
 #include <nvs_flash.h>
+
+#include "lwip/err.h"
+#include "lwip/sockets.h"
 
 #define HOST_NAME_KEY "host_name"
 #define MAX_HOST_NAME_LEN 16
@@ -69,19 +72,15 @@ void app_main(void)
              mac_addr[0], mac_addr[1], mac_addr[2],
              mac_addr[3], mac_addr[4], mac_addr[5]);
 
-    char uuid[UUIDS_LEN];
-    time_t saved_time;
-    get_uuid(mac_addr, uuid, &saved_time);
+    esp_netif_ip_info_t ip_info = { 0 };
+    esp_netif_get_ip_info(netif, &ip_info);
+    struct in_addr ip_struct = { 0 };
+    inet_addr_from_ip4addr(&ip_struct, &ip_info.ip);
 
-    struct tm timeinfo = { 0 };
-    localtime_r(&saved_time, &timeinfo);
-    char strftime_buf[64];
-    strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
+    char ip_addr[INET_ADDRSTRLEN];
+    lwip_inet_ntop(AF_INET, &ip_struct, ip_addr, INET_ADDRSTRLEN);
 
-    ESP_LOGI(TAG, "Build date is %s %s", __DATE__, __TIME__);
-    ESP_LOGI(TAG, "UUID is %s, generated with date %s", uuid, strftime_buf);
-
-    start_dlna(netif);
+    start_upnp(ip_addr, mac_addr);
 
     gpio_config_t gpio = {
             .pin_bit_mask = 0x00000021,

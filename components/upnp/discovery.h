@@ -1,6 +1,8 @@
 #ifndef AIRDAC_FIRMWARE_DLNA_SSDP_H
 #define AIRDAC_FIRMWARE_DLNA_SSDP_H
 
-void start_discovery(void);
+#include <esp_netif.h>
+
+void start_discovery(const char* ip_addr, const uuid_t* uuid);
 
 #endif //AIRDAC_FIRMWARE_DLNA_SSDP_H
