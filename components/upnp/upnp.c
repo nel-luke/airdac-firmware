@@ -2,6 +2,7 @@
 #include "upnp.h"
 #include "discovery.h"
 #include "build_time.h"
+#include "description.h"
 
 #include <esp_log.h>
 #include <nvs_flash.h>
@@ -21,6 +22,12 @@
 #define NVS_TIME_KEY "uuid_time"
 
 static const char *TAG = "upnp";
+
+static struct {
+    char ip_addr[IPADDR_STRLEN_MAX];
+    uuid_t uuid;
+    char friendly_name[50];
+} upnp_info;
 
 void get_uuid(const uint8_t* mac_addr, uuid_t* uuid, time_t* saved_time) {
     time_t build_time = BUILD_TIME;
@@ -85,10 +92,12 @@ void get_uuid(const uint8_t* mac_addr, uuid_t* uuid, time_t* saved_time) {
     goto return_uuid;
 }
 
-void start_upnp(const char* ip_addr, const uint8_t* mac_addr) {
-    uuid_t uuid;
+void start_upnp(const char* ip_addr, const uint8_t* mac_addr, const char* friendly_name) {
+    strcpy(upnp_info.ip_addr, ip_addr);
+    strcpy(upnp_info.friendly_name, friendly_name);
+
     time_t saved_time;
-    get_uuid(mac_addr, &uuid, &saved_time);
+    get_uuid(mac_addr, &upnp_info.uuid, &saved_time);
 
     struct tm timeinfo = { 0 };
     localtime_r(&saved_time, &timeinfo);
@@ -96,7 +105,8 @@ void start_upnp(const char* ip_addr, const uint8_t* mac_addr) {
     strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
 
     ESP_LOGI(TAG, "Build date is %s %s", __DATE__, __TIME__);
-    ESP_LOGI(TAG, "UUID is %s, generated with date %s", uuid.uuid_s, strftime_buf);
+    ESP_LOGI(TAG, "UUID is %s, generated with date %s", upnp_info.uuid.uuid_s, strftime_buf);
 
-    start_discovery(ip_addr, &uuid);
+    start_discovery(upnp_info.ip_addr, upnp_info.uuid.uuid_s);
+    start_description(upnp_info.friendly_name, upnp_info.uuid.uuid_s, upnp_info.ip_addr);
 }

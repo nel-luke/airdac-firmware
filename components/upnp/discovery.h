@@ -3,6 +3,6 @@
 
 #include <esp_netif.h>
 
-void start_discovery(const char* ip_addr, const uuid_t* uuid);
+void start_discovery(const char* ip_addr, const char* uuid);
 
 #endif //AIRDAC_FIRMWARE_DLNA_SSDP_H

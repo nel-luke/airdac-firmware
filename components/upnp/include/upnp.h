@@ -11,7 +11,7 @@ struct ssdp_uuid {
 typedef struct ssdp_uuid uuid_t;
 
 void get_uuid(const uint8_t* mac_addr, uuid_t* uuid, time_t* saved_time);
-void start_upnp(const char* ip_addr, const uint8_t* mac_addr);
+void start_upnp(const char* ip_addr, const uint8_t* mac_addr, const char* friendly_name);
 
 
 #endif //AIRDAC_FIRMWARE_UPNP_H

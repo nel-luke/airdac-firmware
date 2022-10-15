@@ -1,4 +1,3 @@
-#include "upnp.h"
 #include "discovery.h"
 
 #include <string.h>
@@ -23,36 +22,40 @@ static const char *TAG = "upnp_discovery";
 
 static struct {
     int sockp;
-    uuid_t uuid;
-    char ip_addr[INET_ADDRSTRLEN];
+    const char* uuid;
+    const char* ip_addr;
     int boot_id;
     struct sockaddr_in groupSock;
     TaskHandle_t handle;
-} ssdp_listen_vars;
+} discovery_info;
 
 static const char notify_fmt[] =
         "NOTIFY * HTTP/1.1\r\n"
         "HOST: 239.255.255.250:1900\r\n"
         "CACHE-CONTROL: max-age = 1800\r\n"
-        "LOCATION: http://%s/upnp/\r\n"
+        "LOCATION: http://%s/upnp/rootDesc.xml\r\n"
         "NT: %s\r\n"
         "NTS: ssdp:alive\r\n"
-        "SERVER: esp-idf/" ESP_VER_STR "UPnP/2.0 AirDAC/1.0\r\n"
+        "SERVER: esp-idf/" ESP_VER_STR "UPnP/1.0 AirDAC/1.0\r\n"
         "USN: %s\r\n"
         "BOOTID.UPNP.ORG: %d\r\n"
         "CONFIGID.UPNP.ORG: 1\r\n"
         "\r\n";
 
 static const char root_device_nt1[] = "upnp:rootdevice";
-static const char root_device_nt3[] = "urn:schemas-upnp-org:device:MediaRenderer:2";
-static const char root_service_nt[] = "urn:schemas-upnp-org:service:MediaRenderer:2";
+static const char root_device_nt3[] = "urn:schemas-upnp-org:device:MediaRenderer:1";
+
+enum ServiceType { RenderingControl, ConnectionManager, AVTransport };
+static const char service_rendering_control[] = "urn:schemas-upnp-org:service:RenderingControl:1";
+static const char service_connection_manager[] = "urn:schemas-upnp-org:service:ConnectionManager:1";
+static const char service_av_transport[] = "urn:schemas-upnp-org:service:AVTransport:1";
 
 static const char msearch_resp_fmt[] =
         "HTTP/1.1 200 OK\r\n"
         "CACHE-CONTROL: max-age = 1800\r\n"
         "EST:\r\n"
-        "LOCATION: http://%s/upnp\r\n"
-        "SERVER: esp-idf/" ESP_VER_STR "UPnP/2.0 AirDAC/1.0\r\n"
+        "LOCATION: http://%s/upnp/rootDesc.xml\r\n"
+        "SERVER: esp-idf/" ESP_VER_STR "UPnP/1.0 AirDAC/1.0\r\n"
         "ST: %s\r\n"
         "USN: %s\r\n"
         "BOOTID.UPNP.ORG: %d\r\n"
@@ -67,42 +70,60 @@ static char usn_string[90];
 static char rec_buf[500];
 
 static inline void send_root_device_1(const char* fmt) {
-    snprintf(usn_string, sizeof(usn_string), "%s::%s", ssdp_listen_vars.uuid.uuid_s, root_device_nt1);
-    snprintf(send_buf, sizeof(send_buf), fmt, ssdp_listen_vars.ip_addr,
-             root_device_nt1, usn_string, ssdp_listen_vars.boot_id);
-    sendto(ssdp_listen_vars.sockp, send_buf, strlen(send_buf), 0,
-           (struct sockaddr*)&ssdp_listen_vars.groupSock, sizeof(ssdp_listen_vars.groupSock));
+    snprintf(usn_string, sizeof(usn_string), "%s::%s", discovery_info.uuid, root_device_nt1);
+    snprintf(send_buf, sizeof(send_buf), fmt, discovery_info.ip_addr,
+             root_device_nt1, usn_string, discovery_info.boot_id);
+    sendto(discovery_info.sockp, send_buf, strlen(send_buf), 0,
+           (struct sockaddr*)&discovery_info.groupSock, sizeof(discovery_info.groupSock));
 }
 
 static inline void send_root_device_2(const char* fmt) {
-    snprintf(nt_string, sizeof(nt_string), "uuid:%s", ssdp_listen_vars.uuid.uuid_s);
-    snprintf(send_buf, sizeof(send_buf), fmt, ssdp_listen_vars.ip_addr,
-             nt_string, nt_string, ssdp_listen_vars.boot_id);
-    sendto(ssdp_listen_vars.sockp, send_buf, strlen(send_buf), 0,
-           (struct sockaddr*)&ssdp_listen_vars.groupSock, sizeof(ssdp_listen_vars.groupSock));
+    snprintf(nt_string, sizeof(nt_string), "uuid:%s", discovery_info.uuid);
+    snprintf(send_buf, sizeof(send_buf), fmt, discovery_info.ip_addr,
+             nt_string, nt_string, discovery_info.boot_id);
+    sendto(discovery_info.sockp, send_buf, strlen(send_buf), 0,
+           (struct sockaddr*)&discovery_info.groupSock, sizeof(discovery_info.groupSock));
 }
 
 static inline void send_root_device_3(const char* fmt) {
-    snprintf(usn_string, sizeof(usn_string), "uuid:%s::%s", ssdp_listen_vars.uuid.uuid_s, root_device_nt3);
-    snprintf(send_buf, sizeof(send_buf), fmt, ssdp_listen_vars.ip_addr,
-             root_device_nt3, usn_string, ssdp_listen_vars.boot_id);
-    sendto(ssdp_listen_vars.sockp, send_buf, strlen(send_buf), 0,
-           (struct sockaddr*)&ssdp_listen_vars.groupSock, sizeof(ssdp_listen_vars.groupSock));
+    snprintf(usn_string, sizeof(usn_string), "uuid:%s::%s", discovery_info.uuid, root_device_nt3);
+    snprintf(send_buf, sizeof(send_buf), fmt, discovery_info.ip_addr,
+             root_device_nt3, usn_string, discovery_info.boot_id);
+    sendto(discovery_info.sockp, send_buf, strlen(send_buf), 0,
+           (struct sockaddr*)&discovery_info.groupSock, sizeof(discovery_info.groupSock));
 }
 
-static inline void send_root_service(const char* fmt) {
-    snprintf(usn_string, sizeof(usn_string), "uuid:%s::%s", ssdp_listen_vars.uuid.uuid_s, root_service_nt);
-    snprintf(send_buf, sizeof(send_buf), fmt, ssdp_listen_vars.ip_addr,
-             root_service_nt, usn_string, ssdp_listen_vars.boot_id);
-    sendto(ssdp_listen_vars.sockp, send_buf, strlen(send_buf), 0,
-           (struct sockaddr*)&ssdp_listen_vars.groupSock, sizeof(ssdp_listen_vars.groupSock));
+static inline void send_service(const char* fmt, const enum ServiceType num) {
+    switch (num) {
+        case RenderingControl:
+            snprintf(usn_string, sizeof(usn_string), "uuid:%s::%s", discovery_info.uuid, service_rendering_control);
+            snprintf(send_buf, sizeof(send_buf), fmt, discovery_info.ip_addr,
+                     service_rendering_control, usn_string, discovery_info.boot_id);
+            break;
+        case ConnectionManager:
+            snprintf(usn_string, sizeof(usn_string), "uuid:%s::%s", discovery_info.uuid, service_connection_manager);
+            snprintf(send_buf, sizeof(send_buf), fmt, discovery_info.ip_addr,
+                     service_connection_manager, usn_string, discovery_info.boot_id);
+            break;
+        case AVTransport:
+            snprintf(usn_string, sizeof(usn_string), "uuid:%s::%s", discovery_info.uuid, service_av_transport);
+            snprintf(send_buf, sizeof(send_buf), fmt, discovery_info.ip_addr,
+                     service_av_transport, usn_string, discovery_info.boot_id);
+            break;
+        default:
+            abort(); // Should never happen
+    };
+    sendto(discovery_info.sockp, send_buf, strlen(send_buf), 0,
+           (struct sockaddr*)&discovery_info.groupSock, sizeof(discovery_info.groupSock));
 }
 
 static void send_all(const char* fmt) {
     send_root_device_1(fmt);
     send_root_device_2(fmt);
     send_root_device_3(fmt);
-    send_root_service(fmt);
+    send_service(fmt, RenderingControl);
+    send_service(fmt, ConnectionManager);
+    send_service(fmt, AVTransport);
 }
 
 static void send_notify() {
@@ -134,15 +155,21 @@ static void handle_msearch_message(void) {
     } else if (strstr(st_start, root_device_nt1) != NULL) {
         vTaskDelay(random_wait_msec / portTICK_PERIOD_MS);
         send_root_device_1(msearch_resp_fmt);
-    } else if (strstr(st_start, ssdp_listen_vars.uuid.uuid_s) != NULL) {
+    } else if (strstr(st_start, discovery_info.uuid) != NULL) {
         vTaskDelay(random_wait_msec / portTICK_PERIOD_MS);
         send_root_device_2(msearch_resp_fmt);
     } else if (strstr(st_start, root_device_nt3) != NULL) {
         vTaskDelay(random_wait_msec / portTICK_PERIOD_MS);
         send_root_device_3(msearch_resp_fmt);
-    } else if (strstr(st_start, root_service_nt) != NULL) {
+    } else if (strstr(st_start, service_rendering_control) != NULL) {
         vTaskDelay(random_wait_msec / portTICK_PERIOD_MS);
-        send_root_service(msearch_resp_fmt);
+        send_service(msearch_resp_fmt, RenderingControl);
+    } else if (strstr(st_start, service_connection_manager) != NULL) {
+        vTaskDelay(random_wait_msec / portTICK_PERIOD_MS);
+        send_service(msearch_resp_fmt, ConnectionManager);
+    } else if (strstr(st_start, service_connection_manager) != NULL) {
+        vTaskDelay(random_wait_msec / portTICK_PERIOD_MS);
+        send_service(msearch_resp_fmt, AVTransport);
     } else {
         ESP_LOGV(TAG, "Unkown ST. Discarding");
     }
@@ -150,11 +177,11 @@ static void handle_msearch_message(void) {
 }
 
 static void remindThreadToSend(TimerHandle_t self) {
-    xTaskNotifyGive(ssdp_listen_vars.handle);
+    xTaskNotifyGive(discovery_info.handle);
 }
 
-_Noreturn static void ssdp_listen_loop(void* args) {
-    ESP_LOGI(TAG, "SSDP Listen Loop started");
+_Noreturn static void discovery_listen_loop(void* args) {
+    ESP_LOGI(TAG, "Discovery Listen Loop started");
     send_notify();
     TimerHandle_t notify_timer = xTimerCreate("Notify Timer", pdMS_TO_TICKS(90000), pdTRUE, NULL, remindThreadToSend);
     xTimerStart(notify_timer, 0);
@@ -173,25 +200,29 @@ _Noreturn static void ssdp_listen_loop(void* args) {
         if (ulTaskNotifyTake(pdTRUE, 0))
             send_notify();
 
-        FD_SET(ssdp_listen_vars.sockp, &set);
-        select(ssdp_listen_vars.sockp+1, &set, NULL, NULL, &tv);
+        FD_SET(discovery_info.sockp, &set);
+        select(discovery_info.sockp + 1, &set, NULL, NULL, &tv);
 
-        if (FD_ISSET(ssdp_listen_vars.sockp, &set)) {
-            recvfrom(ssdp_listen_vars.sockp, rec_buf, sizeof(rec_buf), 0, &sender, &sender_length);
+        if (FD_ISSET(discovery_info.sockp, &set)) {
+            recvfrom(discovery_info.sockp, rec_buf, sizeof(rec_buf), 0, &sender, &sender_length);
             if (strstr(rec_buf, "M-SEARCH * HTTP/1.1") != NULL) {
                 ESP_LOGV(TAG, "MSEARCH message received!");
                 handle_msearch_message();
+            } else if (strstr(rec_buf, "MediaServer") != NULL) {
+                ESP_LOGI(TAG, "Media server found! Sending packets");
+                send_notify();
             } else {
-                ESP_LOGI(TAG, "Message discarded");
+                ESP_LOGV(TAG, "Message discarded");
             }
             memset(rec_buf, 0, sizeof(rec_buf));
         }
     }
 }
 
-void start_discovery(const char* ip_addr, const uuid_t* uuid) {
+void start_discovery(const char* ip_addr, const char* uuid) {
     // Save IP address string for later use
-    strcpy(&ssdp_listen_vars.ip_addr, ip_addr);
+    discovery_info.ip_addr = ip_addr;
+    discovery_info.uuid = uuid;
 
     // Create socket
     const int udpSocket = socket(AF_INET, SOCK_DGRAM, 0);
@@ -221,16 +252,15 @@ void start_discovery(const char* ip_addr, const uuid_t* uuid) {
 
     time_t t;
     time(&t);
-    ssdp_listen_vars.boot_id = (int)t;
+    discovery_info.boot_id = (int)t;
 
     struct sockaddr_in groupSock = {
             .sin_family = AF_INET,
             .sin_addr.s_addr = inet_addr(SSDP_MULTICAST_ADDR_IPV4),
             .sin_port = htons(SSDP_MULTICAST_PORT)
     };
-    memcpy(&ssdp_listen_vars.groupSock, &groupSock, sizeof(groupSock));
+    memcpy(&discovery_info.groupSock, &groupSock, sizeof(groupSock));
 
-    ssdp_listen_vars.sockp = udpSocket;
-    memcpy(&ssdp_listen_vars.uuid, uuid, sizeof(uuid_t));
-    xTaskCreate(ssdp_listen_loop, "SSDP Listen Loop", 2048, NULL, 5, &ssdp_listen_vars.handle);
+    discovery_info.sockp = udpSocket;
+    xTaskCreate(discovery_listen_loop, "Discovery Listen Loop", 2048, NULL, 5, &discovery_info.handle);
 }

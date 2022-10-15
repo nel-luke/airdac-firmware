@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+    <specVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </specVersion>
+    <device>
+        <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
+        <presentationURL>upnp/rootDesc.xml</presentationURL>
+        <friendlyName>%s</friendlyName>
+        <modelDescription>Media Renderer Device</modelDescription>
+        <modelName>AirDAC</modelName>
+        <modelNumber>1.1</modelNumber>
+        <UPC>Universal Product Code</UPC>
+        <UDN>uuid:%s</UDN>
+        <dlna:X_DLNADOC xmlns:dlna="urn:schemas-dlna-org:device-1-0">DMR-1.01</dlna:X_DLNADOC>
+        <iconList>
+            <icon>
+                <mimetype>image/png</mimetype>
+                <url>/upnp/logo.png</url>
+                <width>96</width>
+                <height>96</height>
+                <depth>8</depth>
+            </icon>
+        </iconList>
+        <serviceList>
+            <service>
+                <serviceType>urn:schemas-upnp-org:service:ConnectionManager:1</serviceType>
+                <serviceId>urn:schemas-upnp-org:serviceId:ConnectionManager</serviceId>
+                <SCPDURL>/upnp/ConnectionManager.xml</SCPDURL>
+                <controlURL>/upnp/ConnectionManager/Control</controlURL>
+                <eventSubURL>/upnp/ConnectionManager/Event</eventSubURL>
+            </service>
+            <service>
+                <serviceType>urn:schemas-upnp-org:service:AVTransport:1</serviceType>
+                <serviceId>urn:schemas-upnp-org:serviceId:AVTransport</serviceId>
+                <SCPDURL>/upnp/AVTransport.xml</SCPDURL>
+                <controlURL>/upnp/AVTransport/Control</controlURL>
+                <eventSubURL>/upnp/AVTransport/Event</eventSubURL>
+            </service>
+            <service>
+                <serviceType>urn:schemas-upnp-org:service:RenderingControl:1</serviceType>
+                <serviceId>urn:schemas-upnp-org:serviceId:RenderingControl</serviceId>
+                <SCPDURL>/upnp/RenderingControl.xml</SCPDURL>
+                <controlURL>/upnp/RenderingControl/Control</controlURL>
+                <eventSubURL>/upnp/RenderingControl/Event</eventSubURL>
+            </service>
+        </serviceList>
+    </device>
+    <URLBase>http://%s:%d/upnp/</URLBase>
+</root>

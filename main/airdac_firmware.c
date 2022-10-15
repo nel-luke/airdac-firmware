@@ -20,6 +20,7 @@
 #define HOST_NAME "AirDAC"
 
 static const char *TAG = "app";
+static char friendly_name[50];
 
 void app_main(void)
 {
@@ -80,7 +81,8 @@ void app_main(void)
     char ip_addr[INET_ADDRSTRLEN];
     lwip_inet_ntop(AF_INET, &ip_struct, ip_addr, INET_ADDRSTRLEN);
 
-    start_upnp(ip_addr, mac_addr);
+    strcpy(friendly_name, host_name);
+    start_upnp(ip_addr, mac_addr, friendly_name);
 
     gpio_config_t gpio = {
             .pin_bit_mask = 0x00000021,
