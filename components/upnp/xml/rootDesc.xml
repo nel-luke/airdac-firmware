@@ -8,12 +8,12 @@
         <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
         <presentationURL>upnp/rootDesc.xml</presentationURL>
         <friendlyName>%s</friendlyName>
+        <manufacturer>Custom</manufacturer>
         <modelDescription>Media Renderer Device</modelDescription>
         <modelName>AirDAC</modelName>
         <modelNumber>1.1</modelNumber>
         <UPC>Universal Product Code</UPC>
         <UDN>uuid:%s</UDN>
-        <dlna:X_DLNADOC xmlns:dlna="urn:schemas-dlna-org:device-1-0">DMR-1.01</dlna:X_DLNADOC>
         <iconList>
             <icon>
                 <mimetype>image/png</mimetype>
@@ -47,5 +47,4 @@
             </service>
         </serviceList>
     </device>
-    <URLBase>http://%s:%d/upnp/</URLBase>
 </root>

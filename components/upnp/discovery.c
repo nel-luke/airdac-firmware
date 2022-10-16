@@ -11,10 +11,6 @@
 #include "lwip/err.h"
 #include "lwip/sockets.h"
 
-#define STR_HELPER(x) #x
-#define STR(x) STR_HELPER(x)
-#define ESP_VER_STR STR(ESP_IDF_VERSION_MAJOR) "." STR(ESP_IDF_VERSION_MINOR) "." STR(ESP_IDF_VERSION_PATCH)
-
 #define SSDP_MULTICAST_ADDR_IPV4 "239.255.255.250"
 #define SSDP_MULTICAST_PORT 1900
 
@@ -36,7 +32,7 @@ static const char notify_fmt[] =
         "LOCATION: http://%s/upnp/rootDesc.xml\r\n"
         "NT: %s\r\n"
         "NTS: ssdp:alive\r\n"
-        "SERVER: esp-idf/" ESP_VER_STR "UPnP/1.0 AirDAC/1.0\r\n"
+        "SERVER:"SERVER_STR"\r\n"
         "USN: %s\r\n"
         "BOOTID.UPNP.ORG: %d\r\n"
         "CONFIGID.UPNP.ORG: 1\r\n"
@@ -78,7 +74,7 @@ static inline void send_root_device_1(const char* fmt) {
 }
 
 static inline void send_root_device_2(const char* fmt) {
-    snprintf(nt_string, sizeof(nt_string), "uuid:%s", discovery_info.uuid);
+    snprintf(nt_string, sizeof(nt_string), "%s", discovery_info.uuid);
     snprintf(send_buf, sizeof(send_buf), fmt, discovery_info.ip_addr,
              nt_string, nt_string, discovery_info.boot_id);
     sendto(discovery_info.sockp, send_buf, strlen(send_buf), 0,
@@ -86,7 +82,7 @@ static inline void send_root_device_2(const char* fmt) {
 }
 
 static inline void send_root_device_3(const char* fmt) {
-    snprintf(usn_string, sizeof(usn_string), "uuid:%s::%s", discovery_info.uuid, root_device_nt3);
+    snprintf(usn_string, sizeof(usn_string), "%s::%s", discovery_info.uuid, root_device_nt3);
     snprintf(send_buf, sizeof(send_buf), fmt, discovery_info.ip_addr,
              root_device_nt3, usn_string, discovery_info.boot_id);
     sendto(discovery_info.sockp, send_buf, strlen(send_buf), 0,
@@ -96,17 +92,17 @@ static inline void send_root_device_3(const char* fmt) {
 static inline void send_service(const char* fmt, const enum ServiceType num) {
     switch (num) {
         case RenderingControl:
-            snprintf(usn_string, sizeof(usn_string), "uuid:%s::%s", discovery_info.uuid, service_rendering_control);
+            snprintf(usn_string, sizeof(usn_string), "%s::%s", discovery_info.uuid, service_rendering_control);
             snprintf(send_buf, sizeof(send_buf), fmt, discovery_info.ip_addr,
                      service_rendering_control, usn_string, discovery_info.boot_id);
             break;
         case ConnectionManager:
-            snprintf(usn_string, sizeof(usn_string), "uuid:%s::%s", discovery_info.uuid, service_connection_manager);
+            snprintf(usn_string, sizeof(usn_string), "%s::%s", discovery_info.uuid, service_connection_manager);
             snprintf(send_buf, sizeof(send_buf), fmt, discovery_info.ip_addr,
                      service_connection_manager, usn_string, discovery_info.boot_id);
             break;
         case AVTransport:
-            snprintf(usn_string, sizeof(usn_string), "uuid:%s::%s", discovery_info.uuid, service_av_transport);
+            snprintf(usn_string, sizeof(usn_string), "%s::%s", discovery_info.uuid, service_av_transport);
             snprintf(send_buf, sizeof(send_buf), fmt, discovery_info.ip_addr,
                      service_av_transport, usn_string, discovery_info.boot_id);
             break;
@@ -127,7 +123,6 @@ static void send_all(const char* fmt) {
 }
 
 static void send_notify() {
-    ESP_LOGI(TAG, "Sending NOTIFY packets");
     // Initial random delay
     int init_delay = esp_random() % 100;
     vTaskDelay(init_delay / portTICK_PERIOD_MS);
@@ -183,7 +178,7 @@ static void remindThreadToSend(TimerHandle_t self) {
 _Noreturn static void discovery_listen_loop(void* args) {
     ESP_LOGI(TAG, "Discovery Listen Loop started");
     send_notify();
-    TimerHandle_t notify_timer = xTimerCreate("Notify Timer", pdMS_TO_TICKS(90000), pdTRUE, NULL, remindThreadToSend);
+    TimerHandle_t notify_timer = xTimerCreate("Discovery Notify Timer", pdMS_TO_TICKS(900000), pdTRUE, NULL, remindThreadToSend);
     xTimerStart(notify_timer, 0);
 
     struct timeval tv = {
@@ -197,8 +192,10 @@ _Noreturn static void discovery_listen_loop(void* args) {
     struct sockaddr sender;
     size_t sender_length = sizeof(sender);
     while (1) {
-        if (ulTaskNotifyTake(pdTRUE, 0))
+        if (ulTaskNotifyTake(pdTRUE, 0)) {
+            ESP_LOGI(TAG, "Sending NOTIFY packets");
             send_notify();
+        }
 
         FD_SET(discovery_info.sockp, &set);
         select(discovery_info.sockp + 1, &set, NULL, NULL, &tv);
@@ -209,7 +206,6 @@ _Noreturn static void discovery_listen_loop(void* args) {
                 ESP_LOGV(TAG, "MSEARCH message received!");
                 handle_msearch_message();
             } else if (strstr(rec_buf, "MediaServer") != NULL) {
-                ESP_LOGI(TAG, "Media server found! Sending packets");
                 send_notify();
             } else {
                 ESP_LOGV(TAG, "Message discarded");

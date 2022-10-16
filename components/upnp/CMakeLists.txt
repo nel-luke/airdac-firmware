@@ -5,8 +5,10 @@ set(COMPONENT_PRIV_REQUIRES esp_http_server nvs_flash)
 
 set(COMPONENT_SRCS
         ./upnp.c
+        ./uuid.c
         ./discovery.c
         ./description.c
+        ./eventing.c
         )
 
 set(COMPONENT_EMBED_TXTFILES
