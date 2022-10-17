@@ -1,16 +1,7 @@
 #include "description.h"
-#include "eventing.h"
+#include "common.h"
 
-#include <sys/param.h>
-
-#include "esp_log.h"
-#include "esp_system.h"
-
-#include "freertos/FreeRTOS.h"
-
-#include <esp_http_server.h>
-
-#define SERVER_PORT 80
+#include <esp_log.h>
 
 static const char *TAG = "upnp_description";
 
@@ -94,39 +85,14 @@ static esp_err_t RenderingControl_handler(httpd_req_t *req)
         .handler = RenderingControl_handler
 };
 
-static httpd_handle_t start_webserver(void)
-{
-    httpd_handle_t server = NULL;
-    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_open_sockets = 5;
-    config.max_uri_handlers = 12;
-    config.lru_purge_enable = true;
-    config.server_port = SERVER_PORT;
+void start_description(httpd_handle_t server, const char* friendly_name, const char* uuid, const char* ip_addr) {
+    ESP_LOGI(TAG, "Starting description");
+    rootDesc_bytes = snprintf(rootDesc_buf, sizeof(rootDesc_buf), rootDesc_start, friendly_name, uuid, ip_addr, SERVER_PORT);
 
-    // Start the httpd server
-    ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
-    ESP_ERROR_CHECK(httpd_start(&server, &config));
-
-    // Set URI handlers
-    ESP_LOGI(TAG, "Registering URI handlers");
     httpd_register_uri_handler(server, &rootDesc);
     httpd_register_uri_handler(server, &logo);
 
     httpd_register_uri_handler(server, &AVTransport);
     httpd_register_uri_handler(server, &ConnectionManager);
     httpd_register_uri_handler(server, &RenderingControl);
-
-    httpd_register_uri_handler(server, &AVTransport_Subscribe);
-    httpd_register_uri_handler(server, &ConnectionManager_Subscribe);
-    httpd_register_uri_handler(server, &RenderingControl_Subscribe);
-
-    httpd_register_uri_handler(server, &AVTransport_Unsubscribe);
-    httpd_register_uri_handler(server, &ConnectionManager_Unsubscribe);
-    httpd_register_uri_handler(server, &RenderingControl_Unsubscribe);
-    return server;
-}
-
-void start_description(const char* friendly_name, const char* uuid, const char* ip_addr) {
-    rootDesc_bytes = snprintf(rootDesc_buf, sizeof(rootDesc_buf), rootDesc_start, friendly_name, uuid, ip_addr, SERVER_PORT);
-    start_webserver();
 }

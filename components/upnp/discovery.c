@@ -1,15 +1,16 @@
 #include "discovery.h"
+#include "common.h"
 
 #include <string.h>
 #include <sys/param.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/event_groups.h"
-#include "esp_system.h"
-#include "esp_log.h"
 
-#include "lwip/err.h"
-#include "lwip/sockets.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/event_groups.h>
+
+#include <esp_log.h>
+
+#include <lwip/sockets.h>
 
 #define SSDP_MULTICAST_ADDR_IPV4 "239.255.255.250"
 #define SSDP_MULTICAST_PORT 1900
@@ -216,6 +217,7 @@ _Noreturn static void discovery_listen_loop(void* args) {
 }
 
 void start_discovery(const char* ip_addr, const char* uuid) {
+    ESP_LOGI(TAG, "Starting discovery");
     // Save IP address string for later use
     discovery_info.ip_addr = ip_addr;
     discovery_info.uuid = uuid;

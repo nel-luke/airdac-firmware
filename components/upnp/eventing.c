@@ -1,9 +1,9 @@
 #include "eventing.h"
+#include "common.h"
 #include "uuid.h"
-#include "discovery.h"
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/timers.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/timers.h>
 
 #include <esp_log.h>
 
@@ -210,8 +210,17 @@ static esp_err_t RenderingControl_Unsubscribe_handler(httpd_req_t *req) {
         .handler = RenderingControl_Unsubscribe_handler
 };
 
-void start_eventing() {
+void start_eventing(httpd_handle_t server) {
+    ESP_LOGI(TAG, "Starting eventing");
     memset(subscription_list, 0, sizeof(subscription_list));
     clean_subscriber_timer = xTimerCreate("Eventing Subscriber Timer", pdMS_TO_TICKS(SUBSCRIBER_REFRESH_MS), pdTRUE, NULL, clean_subscribers);
     xTimerStart(clean_subscriber_timer, 0);
+
+    httpd_register_uri_handler(server, &AVTransport_Subscribe);
+    httpd_register_uri_handler(server, &ConnectionManager_Subscribe);
+    httpd_register_uri_handler(server, &RenderingControl_Subscribe);
+
+    httpd_register_uri_handler(server, &AVTransport_Unsubscribe);
+    httpd_register_uri_handler(server, &ConnectionManager_Unsubscribe);
+    httpd_register_uri_handler(server, &RenderingControl_Unsubscribe);
 }
