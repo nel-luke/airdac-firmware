@@ -1,22 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<root xmlns="urn:schemas-upnp-org:device-1-0"
-      xmlns:pnpx="http://schemas.microsoft.com/windows/pnpx/2005/11"
-      xmlns:df="http://schemas.microsoft.com/windows/2008/09/devicefoundation"
-      xmlns:sec="http://www.sec.co.kr/dlna">
+<root xmlns="urn:schemas-upnp-org:device-1-0">
     <specVersion>
         <major>1</major>
         <minor>0</minor>
     </specVersion>
     <device>
         <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
-        <pnpx:X_compatibleId>MS_DigitalMediaDeviceClass_DMR_V001</pnpx:X_compatibleId>
-        <dlna:X_DLNADOC xmlns:dlna="urn:schemas-dlna-org:device-1-0">DMR-1.50</dlna:X_DLNADOC>
         <friendlyName>%s</friendlyName>
         <manufacturer>Custom</manufacturer>
         <modelDescription>Media Renderer Device</modelDescription>
         <modelName>AirDAC</modelName>
         <modelNumber>1.1</modelNumber>
-        <serialNumber>00W93FAN601932E</serialNumber>
         <UDN>%s</UDN>
         <iconList>
             <icon>

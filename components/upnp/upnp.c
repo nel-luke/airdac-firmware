@@ -22,8 +22,6 @@ static struct {
     char friendly_name[50];
 } upnp_info;
 
-
-
 static httpd_handle_t start_webserver(void)
 {
     httpd_handle_t server = NULL;
@@ -35,7 +33,7 @@ static httpd_handle_t start_webserver(void)
 
     // Start the httpd server
     ESP_LOGI(TAG, "Using %d URIs", config.max_uri_handlers);
-    ESP_LOGI(TAG, "Web server on port %d", config.server_port);
+    ESP_LOGI(TAG, "uPnP server on port %d", config.server_port);
     ESP_ERROR_CHECK(httpd_start(&server, &config));
 
     return server;
@@ -43,20 +41,20 @@ static httpd_handle_t start_webserver(void)
 
 _Noreturn void upnp_loop(void* args) {
     while (1) {
-        if (xEventGroupWaitBits(upnp_events, EVENTING_SEND_INITIAL_NOTIFY_BIT, pdTRUE, pdFALSE, 10) & EVENTING_SEND_INITIAL_NOTIFY_BIT)
+        if (xEventGroupWaitBits(upnp_events, EVENTING_SEND_INITIAL_NOTIFY_BIT, pdTRUE, pdFALSE, 0) & EVENTING_SEND_INITIAL_NOTIFY_BIT)
             eventing_send_initial_notify();
 
-        if (xEventGroupWaitBits(upnp_events, DISCOVERY_SEND_NOTIFY_BIT, pdTRUE, pdFALSE, 10) & DISCOVERY_SEND_NOTIFY_BIT)
-            discovery_send_notify();
-
-        if (xEventGroupWaitBits(upnp_events, EVENTING_CLEAN_SUBSCRIBERS_BIT, pdTRUE, pdFALSE, 10) & EVENTING_CLEAN_SUBSCRIBERS_BIT)
+        if (xEventGroupWaitBits(upnp_events, EVENTING_CLEAN_SUBSCRIBERS_BIT, pdTRUE, pdFALSE, 0) & EVENTING_CLEAN_SUBSCRIBERS_BIT)
             eventing_clean_subscribers();
+
+        if (xEventGroupWaitBits(upnp_events, DISCOVERY_SEND_NOTIFY_BIT, pdTRUE, pdFALSE, 0) & DISCOVERY_SEND_NOTIFY_BIT)
+            discovery_send_notify();
 
         service_discovery();
     }
 }
 
-void start_upnp(const char* ip_addr, const uint8_t* mac_addr, const char* friendly_name) {
+void upnp_start(const char* ip_addr, const uint8_t* mac_addr, const char* friendly_name) {
     ESP_LOGI(TAG, "Starting uPnP");
     upnp_events = xEventGroupCreate();
     strcpy(upnp_info.ip_addr, ip_addr);

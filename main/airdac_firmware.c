@@ -12,22 +12,23 @@
 #include <driver/gpio.h>
 #include <nvs_flash.h>
 
-#include "lwip/err.h"
-#include "lwip/sockets.h"
+#include <lwip/err.h>
+#include <lwip/sockets.h>
 
 #define HOST_NAME_KEY "host_name"
 #define MAX_HOST_NAME_LEN 16
-#define HOST_NAME "AirDAC"
+#define DEFAULT_HOST_NAME "AirDAC"
 
 static const char *TAG = "app";
+
 static char friendly_name[50];
 
-void app_main(void)
+_Noreturn void app_main(void)
 {
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        // NVS partition was truncated and needs to be erased
+        // NVS partition is truncated and needs to be erased
         // Retry nvs_flash_init
         ESP_ERROR_CHECK(nvs_flash_erase());
         err = nvs_flash_init();
@@ -43,11 +44,11 @@ void app_main(void)
     if (err == ESP_ERR_NVS_NOT_FOUND) {
         ESP_LOGI(TAG, "Host name not initialized yet!");
         ESP_ERROR_CHECK(nvs_open("storage", NVS_READWRITE, &nvs));
-        ESP_LOGI(TAG, "Setting host name to %s", HOST_NAME);
-        ESP_ERROR_CHECK(nvs_set_str(nvs, HOST_NAME_KEY, HOST_NAME));
+        ESP_LOGI(TAG, "Setting host name to %s", DEFAULT_HOST_NAME);
+        ESP_ERROR_CHECK(nvs_set_str(nvs, HOST_NAME_KEY, DEFAULT_HOST_NAME));
         ESP_ERROR_CHECK(nvs_commit(nvs));
         nvs_close(nvs);
-        strcpy(host_name, HOST_NAME);
+        strcpy(host_name, DEFAULT_HOST_NAME);
         //ESP_ERROR_CHECK(nvs_get_str(nvs, "host_name", host_name, &length));
     } else {
         ESP_ERROR_CHECK(err);
@@ -64,8 +65,8 @@ void app_main(void)
     esp_netif_t *netif = esp_netif_create_default_wifi_sta();
     ESP_ERROR_CHECK(esp_netif_set_hostname(netif, host_name));
 
-    initialize_sntp();
-    start_wifi(host_name);
+    misc_init_sntp();
+    wifi_start(host_name);
 
     uint8_t mac_addr[6];
     ESP_ERROR_CHECK(esp_netif_get_mac(netif, mac_addr));
@@ -82,7 +83,7 @@ void app_main(void)
     lwip_inet_ntop(AF_INET, &ip_struct, ip_addr, INET_ADDRSTRLEN);
 
     strcpy(friendly_name, host_name);
-    start_upnp(ip_addr, mac_addr, friendly_name);
+    upnp_start(ip_addr, mac_addr, friendly_name);
 
     gpio_config_t gpio = {
             .pin_bit_mask = 0x00000021,
@@ -103,7 +104,4 @@ void app_main(void)
         bit ^= 1;
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
-
-    // Placed here to remember
-    //free(host_name);
 }

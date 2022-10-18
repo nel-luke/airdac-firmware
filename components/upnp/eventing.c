@@ -217,7 +217,7 @@ static void add_subscriber(httpd_req_t *req, enum subscription_service service_i
     snprintf(timeout_resp, sizeof(timeout_resp), "Second-%d", timeout);
     httpd_resp_set_hdr(req, "Timeout", timeout_resp);
     httpd_resp_set_hdr(req, "Connection", "close");
-    httpd_resp_set_hdr(req, "Date", getDate());
+    httpd_resp_set_hdr(req, "Date", get_date());
     httpd_resp_set_hdr(req, "Server", SERVER_STR);
     httpd_resp_set_hdr(req, "SID", subscription_list[i].service[service_id].sid.uuid_s);
 

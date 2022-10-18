@@ -3,12 +3,11 @@
 #include "provision.h"
 
 #include <sys/param.h>
+#include <esp_log.h>
+#include <nvs.h>
 
-#include "esp_log.h"
-#include "nvs.h"
-
-#include "freertos/FreeRTOS.h"
-#include "freertos/event_groups.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/event_groups.h>
 
 #include <esp_wifi_types.h>
 #include <esp_wifi.h>
@@ -18,9 +17,9 @@
 #define NVS_SSID_KEY "ssid"
 #define NVS_PASSPHRASE_KEY "passphrase"
 
-static const char *TAG = "wifi";
+static const char TAG[] = "wifi";
 
-void start_wifi(const char* host_name) {
+void wifi_start(const char* host_name) {
     ESP_LOGI(TAG, "Starting Wi-Fi...");
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();

@@ -346,71 +346,6 @@
                 </argument>
             </argumentList>
         </action>
-        <action>
-            <name>X_DLNA_GetBytePositionInfo</name>
-            <argumentList>
-                <argument>
-                    <name>InstanceID</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-                </argument>
-                <argument>
-                    <name>TrackSize</name>
-                    <direction>out</direction>
-                    <relatedStateVariable>X_DLNA_CurrentTrackSize</relatedStateVariable>
-                </argument>
-                <argument>
-                    <name>RelByte</name>
-                    <direction>out</direction>
-                    <relatedStateVariable>X_DLNA_RelativeBytePosition</relatedStateVariable>
-                </argument>
-                <argument>
-                    <name>AbsByte</name>
-                    <direction>out</direction>
-                    <relatedStateVariable>X_DLNA_AbsoluteBytePosition</relatedStateVariable>
-                </argument>
-            </argumentList>
-        </action>
-        <action>
-            <name>X_GetStoppedReason</name>
-            <argumentList>
-                <argument>
-                    <name>InstanceID</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-                </argument>
-                <argument>
-                    <name>StoppedReason</name>
-                    <direction>out</direction>
-                    <relatedStateVariable>A_ARG_TYPE_StoppedReason</relatedStateVariable>
-                </argument>
-                <argument>
-                    <name>StoppedReasonData</name>
-                    <direction>out</direction>
-                    <relatedStateVariable>A_ARG_TYPE_StoppedReasonData</relatedStateVariable>
-                </argument>
-            </argumentList>
-        </action>
-        <action>
-            <name>X_PlayerAppHint</name>
-            <argumentList>
-                <argument>
-                    <name>InstanceID</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-                </argument>
-                <argument>
-                    <name>UpnpClass</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>X_ARG_TYPE_UpnpClass</relatedStateVariable>
-                </argument>
-                <argument>
-                    <name>PlayerHint</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>X_ARG_TYPE_PlayerHint</relatedStateVariable>
-                </argument>
-            </argumentList>
-        </action>
     </actionList>
     <serviceStateTable>
         <stateVariable sendEvents="no">
@@ -606,41 +541,12 @@
             <dataType>string</dataType>
         </stateVariable>
         <stateVariable sendEvents="no">
-            <name>X_DLNA_RelativeBytePosition</name>
-            <dataType>string</dataType>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>X_DLNA_AbsoluteBytePosition</name>
-            <dataType>string</dataType>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>X_DLNA_CurrentTrackSize</name>
-            <dataType>string</dataType>
-        </stateVariable>
-        <stateVariable sendEvents="no">
             <name>A_ARG_TYPE_StoppedReason</name>
             <dataType>string</dataType>
         </stateVariable>
         <stateVariable sendEvents="no">
             <name>A_ARG_TYPE_StoppedReasonData</name>
             <dataType>string</dataType>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>X_ARG_TYPE_UpnpClass</name>
-            <dataType>string</dataType>
-            <allowedValueList>
-                <allowedValue>object.item.imageItem</allowedValue>
-                <allowedValue>object.item.audioItem</allowedValue>
-                <allowedValue>object.item.videoItem</allowedValue>
-            </allowedValueList>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>X_ARG_TYPE_PlayerHint</name>
-            <dataType>string</dataType>
-            <allowedValueList>
-                <allowedValue>load</allowedValue>
-                <allowedValue>unload</allowedValue>
-            </allowedValueList>
         </stateVariable>
     </serviceStateTable>
 </scpd>

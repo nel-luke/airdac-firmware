@@ -9,6 +9,9 @@ set(COMPONENT_SRCS
         ./provision.c
         ./dns.c
         )
-set(COMPONENT_EMBED_TXTFILES form.html thank_you.html)
+set(COMPONENT_EMBED_TXTFILES
+        ./html/form.html
+        ./html/thank_you.html
+        )
 
 register_component()

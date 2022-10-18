@@ -2,24 +2,21 @@
 #include "connect.h"
 #include "dns.h"
 
-#include <sys/param.h>
-
-#include "esp_log.h"
-#include "esp_system.h"
-
-#include "freertos/FreeRTOS.h"
-#include "freertos/message_buffer.h"
-
+#include <esp_log.h>
+#include <esp_system.h>
 #include <esp_wifi.h>
 #include <esp_netif.h>
 #include <esp_http_server.h>
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/message_buffer.h>
 
 #include <lwip/inet.h>
 
 #define SSID_PRE_LEN 5
 #define PASSW_PRE_LEN 6
 
-static const char *TAG = "wifi_provision";
+static const char TAG[] = "wifi_provision";
 
 static MessageBufferHandle_t cred_buf;
 static int cred_buf_len = MAX_SSID_LEN + MAX_PASSPHRASE_LEN + SSID_PRE_LEN + PASSW_PRE_LEN + 1;
@@ -95,9 +92,7 @@ static const httpd_uri_t root = {
 // HTTP Error (404) Handler - Redirects all requests to the root page
 static esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
 {
-    // Set status
     httpd_resp_set_status(req, "302 Temporary Redirect");
-    // Redirect to the "/" root directory
     httpd_resp_set_hdr(req, "Location", "/");
     // iOS requires content in the response to detect a captive portal, simply redirecting is not sufficient.
     httpd_resp_send(req, "Redirect to the captive portal", HTTPD_RESP_USE_STRLEN);
@@ -106,7 +101,6 @@ static esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
     return ESP_OK;
 }
 
-/* An HTTP POST handler */
 static esp_err_t post_handler(httpd_req_t *req)
 {
     char credentials[cred_buf_len];
@@ -160,16 +154,11 @@ static httpd_handle_t start_webserver(void)
     return server;
 }
 
-void wifi_get_credentials(const bool poll_connected, const char* host_name, char* ssid, char* passphrase) {
-    /*
-    Turn off warnings from HTTP server as redirecting traffic will yield
-    lots of invalid requests
-    */
+void wifi_get_credentials(bool poll_connected, const char* host_name, char* ssid, char* passphrase) {
     esp_log_level_set("httpd_uri", ESP_LOG_ERROR);
     esp_log_level_set("httpd_txrx", ESP_LOG_ERROR);
     esp_log_level_set("httpd_parse", ESP_LOG_ERROR);
 
-    // Initialize Wi-Fi including netif with default config
     init_softap(host_name);
 
     cred_buf = xMessageBufferCreate(cred_buf_len);
@@ -188,8 +177,6 @@ void wifi_get_credentials(const bool poll_connected, const char* host_name, char
             esp_restart();
         }
     } while (len == 0);
-    ESP_LOGI(TAG, "Received: %.*s", len, credentials);
-
     char* passw_index = strstr(credentials, "passw=");
     size_t ssid_len = passw_index - credentials;
     size_t ssid_pre_len = SSID_PRE_LEN;

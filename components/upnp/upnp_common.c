@@ -9,7 +9,7 @@ EventGroupHandle_t upnp_events;
 
 static char date_str[50];
 
-char* getDate(void) {
+char* get_date(void) {
     time_t now;
     time(&now);
     struct tm *time_struct = gmtime(&now);
