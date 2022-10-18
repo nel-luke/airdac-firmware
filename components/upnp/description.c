@@ -1,5 +1,5 @@
 #include "description.h"
-#include "common.h"
+#include "upnp_common.h"
 
 #include <esp_log.h>
 
@@ -12,10 +12,10 @@ static ssize_t rootDesc_bytes;
 
 static void send_description(httpd_req_t *req,  char* buf, ssize_t buf_len) {
     httpd_resp_set_type(req, "text/xml; charset=\"utf-8\"");
-    httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
+    httpd_resp_set_hdr(req, "Server", SERVER_STR);
+    httpd_resp_set_hdr(req, "User-Agent", USERAGENT_STR);
     httpd_resp_set_hdr(req, "Connection", "close");
-    httpd_resp_set_hdr(req, "Expires", " : 0");
-    httpd_resp_send(req, buf, buf_len);
+    httpd_resp_sendstr(req, buf);
 }
 
 static esp_err_t rootDesc_handler(httpd_req_t *req)
@@ -34,8 +34,6 @@ static esp_err_t logo_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "image/png");
     httpd_resp_set_hdr(req, "Cache-Control", "max-age=3600, must-revalidate");
-    httpd_resp_set_hdr(req, "Connection", "close");
-    httpd_resp_set_hdr(req, "Expires", " : 0");
     uint32_t logo_len = logo_end - logo_start;
     httpd_resp_send(req, logo_start, logo_len);
 

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<e:propertyset xmlns:e="urn:schemas-upnp-org:event-1-0">
+    <e:property>
+        <LastChange>
+            <Event xmlns="urn:schemas-upnp-org:metadata-1-0/%s/">
+                <InstanceID val="0">
+                    %s
+                </InstanceID>
+            </Event>
+        </LastChange>
+    </e:property>
+</e:propertyset>
