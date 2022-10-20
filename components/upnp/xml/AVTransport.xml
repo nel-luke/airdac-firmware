@@ -6,7 +6,7 @@
     </specVersion>
     <actionList>
         <action>
-            <name>Play</name>
+            <name>SetAVTransportURI</name>
             <argumentList>
                 <argument>
                     <name>InstanceID</name>
@@ -14,44 +14,19 @@
                     <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
                 </argument>
                 <argument>
-                    <name>Speed</name>
+                    <name>CurrentURI</name>
                     <direction>in</direction>
-                    <relatedStateVariable>TransportPlaySpeed</relatedStateVariable>
+                    <relatedStateVariable>AVTransportURI</relatedStateVariable>
+                </argument>
+                <argument>
+                    <name>CurrentURIMetaData</name>
+                    <direction>in</direction>
+                    <relatedStateVariable>AVTransportURIMetaData</relatedStateVariable>
                 </argument>
             </argumentList>
         </action>
         <action>
-            <name>Stop</name>
-            <argumentList>
-                <argument>
-                    <name>InstanceID</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-                </argument>
-            </argumentList>
-        </action>
-        <action>
-            <name>Next</name>
-            <argumentList>
-                <argument>
-                    <name>InstanceID</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-                </argument>
-            </argumentList>
-        </action>
-        <action>
-            <name>Previous</name>
-            <argumentList>
-                <argument>
-                    <name>InstanceID</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-                </argument>
-            </argumentList>
-        </action>
-        <action>
-            <name>SetPlayMode</name>
+            <name>SetNextAVTransportURI</name>
             <argumentList>
                 <argument>
                     <name>InstanceID</name>
@@ -59,9 +34,14 @@
                     <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
                 </argument>
                 <argument>
-                    <name>NewPlayMode</name>
+                    <name>NextURI</name>
                     <direction>in</direction>
-                    <relatedStateVariable>CurrentPlayMode</relatedStateVariable>
+                    <relatedStateVariable>NextAVTransportURI</relatedStateVariable>
+                </argument>
+                <argument>
+                    <name>NextURIMetaData</name>
+                    <direction>in</direction>
+                    <relatedStateVariable>NextAVTransportURIMetaData</relatedStateVariable>
                 </argument>
             </argumentList>
         </action>
@@ -122,111 +102,6 @@
             </argumentList>
         </action>
         <action>
-            <name>GetDeviceCapabilities</name>
-            <argumentList>
-                <argument>
-                    <name>InstanceID</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-                </argument>
-                <argument>
-                    <name>PlayMedia</name>
-                    <direction>out</direction>
-                    <relatedStateVariable>PossiblePlaybackStorageMedia</relatedStateVariable>
-                </argument>
-                <argument>
-                    <name>RecMedia</name>
-                    <direction>out</direction>
-                    <relatedStateVariable>PossibleRecordStorageMedia</relatedStateVariable>
-                </argument>
-                <argument>
-                    <name>RecQualityModes</name>
-                    <direction>out</direction>
-                    <relatedStateVariable>PossibleRecordQualityModes</relatedStateVariable>
-                </argument>
-            </argumentList>
-        </action>
-        <action>
-            <name>SetAVTransportURI</name>
-            <argumentList>
-                <argument>
-                    <name>InstanceID</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-                </argument>
-                <argument>
-                    <name>CurrentURI</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>AVTransportURI</relatedStateVariable>
-                </argument>
-                <argument>
-                    <name>CurrentURIMetaData</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>AVTransportURIMetaData</relatedStateVariable>
-                </argument>
-            </argumentList>
-        </action>
-        <action>
-            <name>SetNextAVTransportURI</name>
-            <argumentList>
-                <argument>
-                    <name>InstanceID</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-                </argument>
-                <argument>
-                    <name>NextURI</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>NextAVTransportURI</relatedStateVariable>
-                </argument>
-                <argument>
-                    <name>NextURIMetaData</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>NextAVTransportURIMetaData</relatedStateVariable>
-                </argument>
-            </argumentList>
-        </action>
-        <action>
-            <name>X_PrefetchURI</name>
-            <argumentList>
-                <argument>
-                    <name>InstanceID</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-                </argument>
-                <argument>
-                    <name>PrefetchURI</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>A_ARG_TYPE_PrefetchURI</relatedStateVariable>
-                </argument>
-                <argument>
-                    <name>PrefetchURIMetaData</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>A_ARG_TYPE_PrefetchURIMetaData</relatedStateVariable>
-                </argument>
-            </argumentList>
-        </action>
-        <action>
-            <name>GetTransportSettings</name>
-            <argumentList>
-                <argument>
-                    <name>InstanceID</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-                </argument>
-                <argument>
-                    <name>PlayMode</name>
-                    <direction>out</direction>
-                    <relatedStateVariable>CurrentPlayMode</relatedStateVariable>
-                </argument>
-                <argument>
-                    <name>RecQualityMode</name>
-                    <direction>out</direction>
-                    <relatedStateVariable>CurrentRecordQualityMode</relatedStateVariable>
-                </argument>
-            </argumentList>
-        </action>
-        <action>
             <name>GetTransportInfo</name>
             <argumentList>
                 <argument>
@@ -248,36 +123,6 @@
                     <name>CurrentSpeed</name>
                     <direction>out</direction>
                     <relatedStateVariable>TransportPlaySpeed</relatedStateVariable>
-                </argument>
-            </argumentList>
-        </action>
-        <action>
-            <name>Pause</name>
-            <argumentList>
-                <argument>
-                    <name>InstanceID</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-                </argument>
-            </argumentList>
-        </action>
-        <action>
-            <name>Seek</name>
-            <argumentList>
-                <argument>
-                    <name>InstanceID</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
-                </argument>
-                <argument>
-                    <name>Unit</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>A_ARG_TYPE_SeekMode</relatedStateVariable>
-                </argument>
-                <argument>
-                    <name>Target</name>
-                    <direction>in</direction>
-                    <relatedStateVariable>A_ARG_TYPE_SeekTarget</relatedStateVariable>
                 </argument>
             </argumentList>
         </action>
@@ -332,6 +177,141 @@
             </argumentList>
         </action>
         <action>
+            <name>GetDeviceCapabilities</name>
+            <argumentList>
+                <argument>
+                    <name>InstanceID</name>
+                    <direction>in</direction>
+                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+                </argument>
+                <argument>
+                    <name>PlayMedia</name>
+                    <direction>out</direction>
+                    <relatedStateVariable>PossiblePlaybackStorageMedia</relatedStateVariable>
+                </argument>
+                <argument>
+                    <name>RecMedia</name>
+                    <direction>out</direction>
+                    <relatedStateVariable>PossibleRecordStorageMedia</relatedStateVariable>
+                </argument>
+                <argument>
+                    <name>RecQualityModes</name>
+                    <direction>out</direction>
+                    <relatedStateVariable>PossibleRecordQualityModes</relatedStateVariable>
+                </argument>
+            </argumentList>
+        </action>
+        <action>
+            <name>GetTransportSettings</name>
+            <argumentList>
+                <argument>
+                    <name>InstanceID</name>
+                    <direction>in</direction>
+                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+                </argument>
+                <argument>
+                    <name>PlayMode</name>
+                    <direction>out</direction>
+                    <relatedStateVariable>CurrentPlayMode</relatedStateVariable>
+                </argument>
+                <argument>
+                    <name>RecQualityMode</name>
+                    <direction>out</direction>
+                    <relatedStateVariable>CurrentRecordQualityMode</relatedStateVariable>
+                </argument>
+            </argumentList>
+        </action>
+        <action>
+            <name>Stop</name>
+            <argumentList>
+                <argument>
+                    <name>InstanceID</name>
+                    <direction>in</direction>
+                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+                </argument>
+            </argumentList>
+        </action>
+        <action>
+            <name>Play</name>
+            <argumentList>
+                <argument>
+                    <name>InstanceID</name>
+                    <direction>in</direction>
+                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+                </argument>
+                <argument>
+                    <name>Speed</name>
+                    <direction>in</direction>
+                    <relatedStateVariable>TransportPlaySpeed</relatedStateVariable>
+                </argument>
+            </argumentList>
+        </action>
+        <action>
+            <name>Pause</name>
+            <argumentList>
+                <argument>
+                    <name>InstanceID</name>
+                    <direction>in</direction>
+                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+                </argument>
+            </argumentList>
+        </action>
+        <action>
+            <name>Seek</name>
+            <argumentList>
+                <argument>
+                    <name>InstanceID</name>
+                    <direction>in</direction>
+                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+                </argument>
+                <argument>
+                    <name>Unit</name>
+                    <direction>in</direction>
+                    <relatedStateVariable>A_ARG_TYPE_SeekMode</relatedStateVariable>
+                </argument>
+                <argument>
+                    <name>Target</name>
+                    <direction>in</direction>
+                    <relatedStateVariable>A_ARG_TYPE_SeekTarget</relatedStateVariable>
+                </argument>
+            </argumentList>
+        </action>
+        <action>
+            <name>Next</name>
+            <argumentList>
+                <argument>
+                    <name>InstanceID</name>
+                    <direction>in</direction>
+                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+                </argument>
+            </argumentList>
+        </action>
+        <action>
+            <name>Previous</name>
+            <argumentList>
+                <argument>
+                    <name>InstanceID</name>
+                    <direction>in</direction>
+                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+                </argument>
+            </argumentList>
+        </action>
+        <action>
+            <name>SetPlayMode</name>
+            <argumentList>
+                <argument>
+                    <name>InstanceID</name>
+                    <direction>in</direction>
+                    <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+                </argument>
+                <argument>
+                    <name>NewPlayMode</name>
+                    <direction>in</direction>
+                    <relatedStateVariable>CurrentPlayMode</relatedStateVariable>
+                </argument>
+            </argumentList>
+        </action>
+        <action>
             <name>GetCurrentTransportActions</name>
             <argumentList>
                 <argument>
@@ -370,9 +350,65 @@
             <defaultValue>OK</defaultValue>
         </stateVariable>
         <stateVariable sendEvents="no">
+            <name>PlaybackStorageMedium</name>
+            <dataType>string</dataType>
+            <allowedValueList>
+                <allowedValue>NONE</allowedValue>
+                <allowedValue>NETWORK</allowedValue>
+            </allowedValueList>
+            <defaultValue>NONE</defaultValue>
+        </stateVariable>
+        <stateVariable sendEvents="no">
+            <name>RecordStorageMedium</name>
+            <dataType>string</dataType>
+            <defaultValue>NOT_IMPLEMENTED</defaultValue>
+        </stateVariable>
+        <stateVariable sendEvents="no">
+            <name>PossiblePlaybackStorageMedia</name>
+            <dataType>string</dataType>
+            <defaultValue>NETWORK</defaultValue>
+        </stateVariable>
+        <stateVariable sendEvents="no">
+            <name>PossibleRecordStorageMedia</name>
+            <dataType>string</dataType>
+            <defaultValue>NOT_IMPLEMENTED</defaultValue>
+        </stateVariable>
+        <stateVariable sendEvents="no">
+            <name>CurrentPlayMode</name>
+            <dataType>string</dataType>
+            <allowedValueList>
+                <allowedValue>NORMAL</allowedValue>
+            </allowedValueList>
+            <defaultValue>NORMAL</defaultValue>
+        </stateVariable>
+        <stateVariable sendEvents="no">
             <name>TransportPlaySpeed</name>
             <dataType>string</dataType>
+            <allowedValueList>
+                <allowedValue>1</allowedValue>
+            </allowedValueList>
             <defaultValue>1</defaultValue>
+        </stateVariable>
+        <stateVariable sendEvents="no">
+            <name>RecordMediumWriteStatus</name>
+            <dataType>string</dataType>
+            <allowedValueList>
+                <allowedValue>NOT_IMPLEMENTED</allowedValue>
+            </allowedValueList>
+            <defaultValue>NOT_IMPLEMENTED</defaultValue>
+        </stateVariable>
+        <stateVariable sendEvents="no">
+            <name>CurrentRecordQualityMode</name>
+            <dataType>string</dataType>
+            <allowedValueList>
+                <allowedValue>NOT_IMPLEMENTED</allowedValue>
+            </allowedValueList>
+            <defaultValue>NOT_IMPLEMENTED</defaultValue>
+        </stateVariable>
+        <stateVariable sendEvents="no">
+            <name>PossibleRecordQualityModes</name>
+            <dataType>string</dataType>
+            <defaultValue>NOT_IMPLEMENTED</defaultValue>
         </stateVariable>
         <stateVariable sendEvents="no">
             <name>NumberOfTracks</name>
@@ -382,28 +418,6 @@
                 <maximum>4294967295</maximum>
             </allowedValueRange>
             <defaultValue>0</defaultValue>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>CurrentMediaDuration</name>
-            <dataType>string</dataType>
-            <defaultValue>00:00:00</defaultValue>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>AVTransportURI</name>
-            <dataType>string</dataType>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>AVTransportURIMetaData</name>
-            <dataType>string</dataType>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>PlaybackStorageMedium</name>
-            <dataType>string</dataType>
-            <allowedValueList>
-                <allowedValue>NONE</allowedValue>
-                <allowedValue>NETWORK</allowedValue>
-            </allowedValueList>
-            <defaultValue>NONE</defaultValue>
         </stateVariable>
         <stateVariable sendEvents="no">
             <name>CurrentTrack</name>
@@ -421,12 +435,36 @@
             <defaultValue>00:00:00</defaultValue>
         </stateVariable>
         <stateVariable sendEvents="no">
+            <name>CurrentMediaDuration</name>
+            <dataType>string</dataType>
+            <defaultValue>00:00:00</defaultValue>
+        </stateVariable>
+        <stateVariable sendEvents="no">
             <name>CurrentTrackMetaData</name>
             <dataType>string</dataType>
+            <defaultValue>NOT_IMPLEMENTED</defaultValue>
         </stateVariable>
         <stateVariable sendEvents="no">
             <name>CurrentTrackURI</name>
             <dataType>string</dataType>
+        </stateVariable>
+        <stateVariable sendEvents="no">
+            <name>AVTransportURI</name>
+            <dataType>string</dataType>
+        </stateVariable>
+        <stateVariable sendEvents="no">
+            <name>AVTransportURIMetaData</name>
+            <dataType>string</dataType>
+            <defaultValue>NOT_IMPLEMENTED</defaultValue>
+        </stateVariable>
+        <stateVariable sendEvents="no">
+            <name>NextAVTransportURI</name>
+            <dataType>string</dataType>
+        </stateVariable>
+        <stateVariable sendEvents="no">
+            <name>NextAVTransportURIMetaData</name>
+            <dataType>string</dataType>
+            <defaultValue>NOT_IMPLEMENTED</defaultValue>
         </stateVariable>
         <stateVariable sendEvents="no">
             <name>RelativeTimePosition</name>
@@ -439,34 +477,6 @@
             <defaultValue>00:00:00</defaultValue>
         </stateVariable>
         <stateVariable sendEvents="no">
-            <name>NextAVTransportURI</name>
-            <dataType>string</dataType>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>NextAVTransportURIMetaData</name>
-            <dataType>string</dataType>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>CurrentTransportActions</name>
-            <dataType>string</dataType>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>RecordStorageMedium</name>
-            <dataType>string</dataType>
-            <allowedValueList>
-                <allowedValue>NOT_IMPLEMENTED</allowedValue>
-            </allowedValueList>
-            <defaultValue>NOT_IMPLEMENTED</defaultValue>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>RecordMediumWriteStatus</name>
-            <dataType>string</dataType>
-            <allowedValueList>
-                <allowedValue>NOT_IMPLEMENTED</allowedValue>
-            </allowedValueList>
-            <defaultValue>NOT_IMPLEMENTED</defaultValue>
-        </stateVariable>
-        <stateVariable sendEvents="no">
             <name>RelativeCounterPosition</name>
             <dataType>i4</dataType>
             <defaultValue>2147483647</defaultValue>
@@ -477,50 +487,12 @@
             <defaultValue>2147483647</defaultValue>
         </stateVariable>
         <stateVariable sendEvents="no">
-            <name>PossiblePlaybackStorageMedia</name>
+            <name>CurrentTransportActions</name>
             <dataType>string</dataType>
-            <defaultValue>NETWORK</defaultValue>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>PossibleRecordStorageMedia</name>
-            <dataType>string</dataType>
-            <defaultValue>NOT_IMPLEMENTED</defaultValue>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>PossibleRecordQualityModes</name>
-            <dataType>string</dataType>
-            <defaultValue>NOT_IMPLEMENTED</defaultValue>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>CurrentPlayMode</name>
-            <dataType>string</dataType>
-            <allowedValueList>
-                <allowedValue>NORMAL</allowedValue>
-            </allowedValueList>
-            <defaultValue>NORMAL</defaultValue>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>CurrentRecordQualityMode</name>
-            <dataType>string</dataType>
-            <allowedValueList>
-                <allowedValue>NOT_IMPLEMENTED</allowedValue>
-            </allowedValueList>
-            <defaultValue>NOT_IMPLEMENTED</defaultValue>
+            <defaultValue>Play,Stop,Pause,Seek,Next,Previous</defaultValue>
         </stateVariable>
         <stateVariable sendEvents="yes">
             <name>LastChange</name>
-            <dataType>string</dataType>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>A_ARG_TYPE_InstanceID</name>
-            <dataType>ui4</dataType>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>A_ARG_TYPE_PrefetchURI</name>
-            <dataType>string</dataType>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>A_ARG_TYPE_PrefetchURIMetaData</name>
             <dataType>string</dataType>
         </stateVariable>
         <stateVariable sendEvents="no">
@@ -541,12 +513,9 @@
             <dataType>string</dataType>
         </stateVariable>
         <stateVariable sendEvents="no">
-            <name>A_ARG_TYPE_StoppedReason</name>
-            <dataType>string</dataType>
+            <name>A_ARG_TYPE_InstanceID</name>
+            <dataType>ui4</dataType>
         </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>A_ARG_TYPE_StoppedReasonData</name>
-            <dataType>string</dataType>
-        </stateVariable>
+
     </serviceStateTable>
 </scpd>

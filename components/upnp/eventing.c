@@ -4,6 +4,7 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/timers.h>
+#include <freertos/semphr.h>
 
 #include <esp_log.h>
 
@@ -12,8 +13,6 @@
 #define SUBSCRIBER_REFRESH_MS 100000
 
 static const char *TAG = "upnp_eventing";
-
-static TimerHandle_t clean_subscriber_timer;
 
 struct subscription {
     TickType_t timeout;
@@ -26,26 +25,26 @@ struct subscription {
 enum subscription_service { AVTransport, ConnectionManager, RenderingControl };
 struct {
     struct subscription service[3];
-} subscription_list[MAX_SUBSCRIBERS];
+} static subscription_list[MAX_SUBSCRIBERS];
+static SemaphoreHandle_t subscription_mutex;
 
 extern char StateChangeEvent_start[] asm("_binary_StateChangeEvent_xml_start");
 extern char StateChangeEvent_end[] asm("_binary_StateChangeEvent_xml_end");
-static void send_state_change_event_event(enum subscription_service service_id, const char* message) {
+static void send_state_change_event(enum subscription_service service_id, const char* message) {
     char service[4];
     switch (service_id) {
         case AVTransport:
             strcpy(service, "AVT");
             break;
-        case ConnectionManager:
-            strcpy(service, "CMR");
-            break;
         case RenderingControl:
             strcpy(service, "RCS");
             break;
+        case ConnectionManager:
         default:
             abort();
     }
 
+    xSemaphoreTake(subscription_mutex, portMAX_DELAY);
     for (int i = 0; i < MAX_SUBSCRIBERS && subscription_list[i].service[service_id].timeout != 0; i++) {
         esp_http_client_config_t notify_config = {
                 .url = subscription_list[i].service[service_id].callback,
@@ -74,11 +73,21 @@ static void send_state_change_event_event(enum subscription_service service_id, 
         free(buf);
         esp_http_client_cleanup(notify_request);
     }
+    xSemaphoreGive(subscription_mutex);
+}
+
+void event_av_transport(const char* message) {
+    send_state_change_event(AVTransport, message);
+}
+
+void event_rendering_control(const char* message) {
+    send_state_change_event(RenderingControl, message);
 }
 
 extern char GetProtocolInfoEvent_start[] asm("_binary_GetProtocolInfoEvent_xml_start");
 extern char GetProtocolInfoEvent_end[] asm("_binary_GetProtocolInfoEvent_xml_end");
-static void send_protocol_info(void) {
+void send_protocol_info(void) {
+    xSemaphoreTake(subscription_mutex, portMAX_DELAY);
     for (int i = 0; i < MAX_SUBSCRIBERS && subscription_list[i].service[ConnectionManager].timeout != 0; i++) {
         if (subscription_list[i].service[ConnectionManager].seq == 0) {
             esp_http_client_config_t notify_config = {
@@ -107,16 +116,7 @@ static void send_protocol_info(void) {
             esp_http_client_cleanup(notify_request);
         }
     }
-}
-
-extern char InitialAVT_start[] asm("_binary_InitialAVT_xml_start");
-extern char InitialAVT_end[] asm("_binary_InitialAVT_xml_end");
-extern char InitialRCS_start[] asm("_binary_InitialRCS_xml_start");
-extern char InitialRCS_end[] asm("_binary_InitialRCS_xml_end");
-void eventing_send_initial_notify(void) {
-    send_protocol_info();
-    send_state_change_event_event(AVTransport, InitialAVT_start);
-    send_state_change_event_event(RenderingControl, InitialRCS_start);
+    xSemaphoreGive(subscription_mutex);
 }
 
 static void delete_subscriber(int subscriber_index, int service_id) {
@@ -124,6 +124,7 @@ static void delete_subscriber(int subscriber_index, int service_id) {
 }
 
 void eventing_clean_subscribers(void) {
+    xSemaphoreTake(subscription_mutex, portMAX_DELAY);
     for (int i = 0; i < MAX_SUBSCRIBERS; i++) {
         for (int j = 0; j < 3; j++) {
             if (subscription_list[i].service[j].timeout != 0 && subscription_list[i].service[j].timeout < xTaskGetTickCount()) {
@@ -132,6 +133,7 @@ void eventing_clean_subscribers(void) {
             }
         }
     }
+    xSemaphoreGive(subscription_mutex);
 }
 
 static bool get_header_value(httpd_req_t *req, char* name, char** value) {
@@ -147,14 +149,15 @@ static bool get_header_value(httpd_req_t *req, char* name, char** value) {
 }
 
 static void add_subscriber(httpd_req_t *req, enum subscription_service service_id) {
-    xTimerStop(clean_subscriber_timer, 10);
-    // If callback is found, add new subscriber. Else, renew subscription
     char* val_str = NULL;
     int i = 0;
     bool send_notify = false;
+
+    eventing_clean_subscribers();
+    xSemaphoreTake(subscription_mutex, portMAX_DELAY);
+    // If callback is found, add new subscriber. Else, renew subscription
     if (get_header_value(req, "Callback", &val_str)) {
         // Find an open subscriber slot
-        eventing_clean_subscribers();
         while (i < MAX_SUBSCRIBERS) {
             if (subscription_list[i].service[service_id].timeout == 0)
                 break;
@@ -220,26 +223,39 @@ static void add_subscriber(httpd_req_t *req, enum subscription_service service_i
     httpd_resp_set_hdr(req, "Date", get_date());
     httpd_resp_set_hdr(req, "Server", SERVER_STR);
     httpd_resp_set_hdr(req, "SID", subscription_list[i].service[service_id].sid.uuid_s);
+    xSemaphoreGive(subscription_mutex);
 
     httpd_resp_send(req, NULL, 0);
-    if (send_notify)
-        xEventGroupSetBits(upnp_events, EVENTING_SEND_INITIAL_NOTIFY_BIT);
+    if (send_notify) {
+        switch (service_id) {
+            case AVTransport:
+                send_event(AV_TRANSPORT_SEND_ALL);
+                break;
+            case ConnectionManager:
+                send_event(SEND_PROTOCOL_INFO);
+                break;
+            case RenderingControl:
+                send_event(RENDERING_CONTROL_SEND_ALL);
+                break;
+            default:
+                abort();
+        }
+    }
 
     end_func:
     free(val_str);
-    xTimerReset(clean_subscriber_timer, 10);
 }
 
 static void remove_subscriber(httpd_req_t *req, enum subscription_service service_id) {
-    xTimerStop(clean_subscriber_timer, 10);
     char* sid = NULL;
     if (get_header_value(req, "SID", &sid) == false) {
         ESP_LOGI(TAG, "No SID in unsubscribe request. Discarding");
         httpd_resp_send_404(req);
-        goto end_func;
+        return;
     }
 
     int i = 0;
+    xSemaphoreTake(subscription_mutex, portMAX_DELAY);
     while (i < MAX_SUBSCRIBERS) {
         if (strcmp(subscription_list[i].service[service_id].sid.uuid_s, sid) == 0)
             break;
@@ -249,16 +265,14 @@ static void remove_subscriber(httpd_req_t *req, enum subscription_service servic
     if (i == MAX_SUBSCRIBERS) {
         ESP_LOGI(TAG, "Unsubscribe SID %s not in list. Discarding request", sid);
         httpd_resp_send_500(req);
-        goto end_func;
+        return;
     }
 
     ESP_LOGI(TAG, "Unsubscribe request with SID %s. Removing", sid);
     delete_subscriber(i, service_id);
+    xSemaphoreGive(subscription_mutex);
 
     httpd_resp_send(req, NULL, 0);
-
-    end_func:
-    xTimerReset(clean_subscriber_timer, 10);
 }
 
 static esp_err_t AVTransport_Subscribe_handler(httpd_req_t *req) {
@@ -317,14 +331,15 @@ static esp_err_t RenderingControl_Unsubscribe_handler(httpd_req_t *req) {
 };
 
 static void eventing_clean_subscribers_cb(TimerHandle_t self) {
-    xEventGroupSetBits(upnp_events, EVENTING_CLEAN_SUBSCRIBERS_BIT);
+    send_event( EVENTING_CLEAN_SUBSCRIBERS);
 }
 
 void start_eventing(httpd_handle_t server) {
     ESP_LOGI(TAG, "Starting eventing");
     memset(subscription_list, 0, sizeof(subscription_list));
-    clean_subscriber_timer = xTimerCreate("Eventing Subscriber Timer", pdMS_TO_TICKS(SUBSCRIBER_REFRESH_MS), pdTRUE, NULL, eventing_clean_subscribers_cb);
-    xTimerStart(clean_subscriber_timer, 0);
+    subscription_mutex = xSemaphoreCreateMutex();
+    TimerHandle_t clean_subscriber_timer = xTimerCreate("Eventing Subscriber Timer", pdMS_TO_TICKS(SUBSCRIBER_REFRESH_MS), pdTRUE, NULL, eventing_clean_subscribers_cb);
+    xTimerStart(clean_subscriber_timer, portMAX_DELAY);
 
     httpd_register_uri_handler(server, &AVTransport_Subscribe);
     httpd_register_uri_handler(server, &ConnectionManager_Subscribe);

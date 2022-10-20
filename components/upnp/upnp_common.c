@@ -16,3 +16,15 @@ char* get_date(void) {
     assert(strftime(date_str, sizeof(date_str), "%a, %d %b %Y %T GMT", time_struct) != 0);
     return date_str;
 }
+
+inline void start_events(void) {
+    upnp_events = xEventGroupCreate();
+}
+
+inline uint32_t get_events(void) {
+    return xEventGroupWaitBits(upnp_events, ALL_EVENT_BITS, pdTRUE, pdFALSE, 0);
+}
+
+inline void send_event(uint32_t event_bits) {
+    xEventGroupSetBits(upnp_events, event_bits);
+}

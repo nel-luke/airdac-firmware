@@ -98,6 +98,7 @@ _Noreturn void app_main(void)
 
     uint32_t bit = 1;
     while (1) {
+        service_wifi();
         gpio_set_level(GPIO_NUM_0, bit);
 //        gpio_set_level(GPIO_NUM_2, bit);
 //        gpio_set_level(GPIO_NUM_4, bit);

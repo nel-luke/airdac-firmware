@@ -117,14 +117,14 @@
         </action>
     </actionList>
     <serviceStateTable>
+        <stateVariable sendEvents="yes">
+            <name>LastChange</name>
+            <dataType>string</dataType>
+        </stateVariable>
         <stateVariable sendEvents="no">
             <name>PresetNameList</name>
             <dataType>string</dataType>
             <defaultValue>FactoryDefaults</defaultValue>
-        </stateVariable>
-        <stateVariable sendEvents="yes">
-            <name>LastChange</name>
-            <dataType>string</dataType>
         </stateVariable>
         <stateVariable sendEvents="no">
             <name>Mute</name>
@@ -156,22 +156,6 @@
             <allowedValueList>
                 <allowedValue>FactoryDefaults</allowedValue>
             </allowedValueList>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>A_ARG_TYPE_Coordinate</name>
-            <dataType>ui4</dataType>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>A_ARG_TYPE_SlideShowState</name>
-            <dataType>boolean</dataType>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>A_ARG_TYPE_ThemeId</name>
-            <dataType>ui4</dataType>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>A_ARG_TYPE_TotalThemeNumber</name>
-            <dataType>ui4</dataType>
         </stateVariable>
     </serviceStateTable>
 </scpd>

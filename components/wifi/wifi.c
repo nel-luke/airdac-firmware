@@ -19,6 +19,13 @@
 
 static const char TAG[] = "wifi";
 
+void service_wifi(void) {
+    if (wifi_poll_disconnected() == true) {
+        ESP_LOGE(TAG, "System disconnected to Wi-Fi. Restarting");
+        esp_restart();
+    }
+}
+
 void wifi_start(const char* host_name) {
     ESP_LOGI(TAG, "Starting Wi-Fi...");
 

@@ -6,7 +6,10 @@
 #define EVENTING_URIS 6
 
 void start_eventing(httpd_handle_t server);
-void eventing_send_initial_notify(void);
 void eventing_clean_subscribers(void);
+
+void event_av_transport(const char* message);
+void send_protocol_info(void);
+void event_rendering_control(const char* message);
 
 #endif //AIRDAC_FIRMWARE_UPNP_EVENTING_H

@@ -6,6 +6,10 @@
 #include "description.h"
 #include "discovery.h"
 
+#include "control/av_transport.h"
+#include "control/connection_manager.h"
+#include "control/rendering_control.h"
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -39,24 +43,52 @@ static httpd_handle_t start_webserver(void)
     return server;
 }
 
+void service_events(void) {
+    uint32_t bits = get_events();
+
+    if (bits & AV_TRANSPORT_SEND_ALL) {
+        char* message = get_av_transport_all();
+        event_av_transport(message);
+        free(message);
+    } else if (bits & AV_TRANSPORT_CHANGED) {
+        char* message = get_av_transport_changes();
+        event_av_transport(message);
+        free(message);
+    }
+
+    if (bits & RENDERING_CONTROL_SEND_ALL) {
+        char* message = get_rendering_control_all();
+        event_rendering_control(message);
+        free(message);
+    } else if (bits & RENDERING_CONTROL_CHANGED) {
+        char* message = get_rendering_control_changes();
+        event_rendering_control(message);
+        free(message);
+    }
+
+    if (bits & SEND_PROTOCOL_INFO) {
+        send_protocol_info();
+    }
+
+    if (bits & EVENTING_CLEAN_SUBSCRIBERS)
+        eventing_clean_subscribers();
+
+    if (bits & DISCOVERY_SEND_NOTIFY)
+        discovery_send_notify();
+}
+
 _Noreturn void upnp_loop(void* args) {
     while (1) {
-        if (xEventGroupWaitBits(upnp_events, EVENTING_SEND_INITIAL_NOTIFY_BIT, pdTRUE, pdFALSE, 0) & EVENTING_SEND_INITIAL_NOTIFY_BIT)
-            eventing_send_initial_notify();
-
-        if (xEventGroupWaitBits(upnp_events, EVENTING_CLEAN_SUBSCRIBERS_BIT, pdTRUE, pdFALSE, 0) & EVENTING_CLEAN_SUBSCRIBERS_BIT)
-            eventing_clean_subscribers();
-
-        if (xEventGroupWaitBits(upnp_events, DISCOVERY_SEND_NOTIFY_BIT, pdTRUE, pdFALSE, 0) & DISCOVERY_SEND_NOTIFY_BIT)
-            discovery_send_notify();
+        service_events();
 
         service_discovery();
+        //vTaskDelay(5 / portTICK_PERIOD_MS);
     }
 }
 
 void upnp_start(const char* ip_addr, const uint8_t* mac_addr, const char* friendly_name) {
     ESP_LOGI(TAG, "Starting uPnP");
-    upnp_events = xEventGroupCreate();
+    start_events();
     strcpy(upnp_info.ip_addr, ip_addr);
     strcpy(upnp_info.friendly_name, friendly_name);
 

@@ -8,6 +8,10 @@ set(COMPONENT_SRCS
         ./upnp_common.c
         ./uuid.c
         ./control.c
+        ./control/av_transport.c
+        ./control/connection_manager.c
+        ./control/rendering_control.c
+        ./control/control_common.c
         ./eventing.c
         ./description.c
         ./discovery.c
@@ -20,9 +24,7 @@ set(COMPONENT_EMBED_TXTFILES
         ./xml/ConnectionManager.xml
         ./xml/RenderingControl.xml
         ./xml/StateChangeEvent.xml
-        ./xml/InitialAVT.xml
         ./xml/GetProtocolInfoEvent.xml
-        ./xml/InitialRCS.xml
         )
 
 register_component()

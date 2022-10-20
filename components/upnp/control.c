@@ -1,4 +1,7 @@
 #include "control.h"
+#include "control/av_transport.h"
+#include "control/connection_manager.h"
+#include "control/rendering_control.h"
 #include "upnp_common.h"
 
 #include <sys/param.h>
@@ -6,65 +9,120 @@
 
 static const char* TAG = "upnp_control";
 
-static const char get_protocol_info_response[] =
-        "<Source></Source>\r\n<Sink>"
-        "http-get:*:*:*,"
-        "http-get:*:audio/mp3:*,"
-        "http-get:*:audio/basic:*,"
-        "http-get:*:audio/ogg:*,"
-        "http-get:*:audio/ac3:*,"
-        "http-get:*:audio/aac:*,"
-        "http-get:*:audio/vorbis:*,"
-        "http-get:*:audio/flac:*,"
-        "http-get:*:audio/x-flac:*,"
-        "http-get:*:audio/x-wav:*"
-        "</Sink>\r\n"
-        ;
-
 extern char SoapResponseOk_start[] asm("_binary_SoapResponseOk_xml_start");
 extern char SoapResponseOk_end[] asm("_binary_SoapResponseOk_xml_end");
 static void sendSoapOk(httpd_req_t *req, const char* service_name, const char* action_name, const char* message) {
+    httpd_resp_set_hdr(req, "EXT", "");
+    httpd_resp_set_hdr(req, "Connection", "close");
     httpd_resp_set_type(req, "text/xml; charset=\"utf-8\"");
     httpd_resp_set_hdr(req, "Server", SERVER_STR);
+    httpd_resp_set_hdr(req, "Date", get_date());
+    httpd_resp_set_hdr(req, "User-Agent", USERAGENT_STR);
 
-    size_t buf_len = snprintf(NULL, 0, SoapResponseOk_start, action_name, service_name, message, action_name) + 1;
+    const char* mp = message == NULL ? "" : message;
+    size_t buf_len = snprintf(NULL, 0, SoapResponseOk_start, action_name, service_name, mp, action_name) + 1;
+
     char* buf = malloc(buf_len);
-    sprintf(buf, SoapResponseOk_start, action_name, service_name, message, action_name);
+    sprintf(buf, SoapResponseOk_start, action_name, service_name, mp, action_name);
     httpd_resp_sendstr(req, buf);
     free(buf);
 }
 
-static void getSoapAction(httpd_req_t *req, char* service_name, size_t service_name_len, char* action_name, size_t action_name_len) {
+static bool getSoapAction(httpd_req_t *req, const char* service_name, size_t service_name_len,
+                          char* action_name, size_t action_name_len, char** arguments) {
     //    SOAPAction: "urn:schemas-upnp-org:service:ConnectionManager:1#GetProtocolInfo"
-    size_t buf_len = httpd_req_get_hdr_value_len(req, "SOAPAction")+1;
-    char* buf = malloc(buf_len);
-    httpd_req_get_hdr_value_str(req, "SOAPAction", buf, buf_len);
+    size_t buff_len = httpd_req_get_hdr_value_len(req, "SOAPAction");
+    if (buff_len == 0) {
+        ESP_LOGW(TAG, "Received request for %s with no SOAPAction header. Discarding", service_name);
+        return true;
+    }
 
-    char* pos = strtok(buf+29, ":");
-    memcpy(service_name, pos, MIN(service_name_len, buf_len-(size_t)(pos-buf)-1));
-    service_name[service_name_len-1] = '\0';
+    char* buff = malloc(buff_len+1);
+    httpd_req_get_hdr_value_str(req, "SOAPAction", buff, buff_len);
 
-    pos = strtok(NULL, "1#");
-    memcpy(action_name, pos, MIN(action_name_len, buf_len-(size_t)(pos-buf)-2));
+    char* pos = strtok(buff + 29, ":1#");
+
+    if (strcmp(pos, service_name) != 0) {
+        ESP_LOGW(TAG, "SOAP service name mismatch (should be %s). Discarding", service_name);
+        return true;
+    }
+
+    pos = strtok(NULL, "\"");
+    memcpy(action_name, pos+2, MIN(action_name_len-1, strlen(pos)));
     action_name[action_name_len-1] = '\0';
-    free(buf);
+    free(buff);
+
+    if (req->content_len < 200)
+        goto parse_error;
+
+    buff = malloc(req->content_len+1);
+    pos = buff;
+    int written = 0;
+    do {
+retry_write:
+        written = httpd_req_recv(req, pos, buff_len);
+        pos += written;
+    } while (written > 0);
+
+    if (written == HTTPD_SOCK_ERR_TIMEOUT) {
+        ESP_LOGW(TAG, "Received timeout (%s). Continuing", service_name);
+        goto retry_write;
+    } else if (written == HTTPD_SOCK_ERR_FAIL) {
+        free(buff);
+        return false;
+    }
+    buff[req->content_len] = '\0';
+
+    char* arg_start = strstr(buff+180, "<m:");
+    if (arg_start == NULL)
+        goto parse_error;
+
+    arg_start = strstr(arg_start, ">");
+    if (arg_start == NULL) {
+parse_error:
+        ESP_LOGW(TAG, "SOAPAction parse error (%s). Discarding request", service_name);
+        action_name[0] = '\0';
+        goto exit;
+    }
+
+    arg_start++;
+    char* arg_end = strstr(arg_start, "</m:");
+
+    if (arg_end == NULL)
+        goto exit; // Request with no arguments
+
+    *arg_end = '\0';
+
+    *arguments = malloc(strlen(arg_start)+1);
+    strcpy(*arguments, arg_start);
+exit:
+    free(buff);
+    return true;
 }
 
 static esp_err_t AVTransport_Control_handler(httpd_req_t *req) {
-    char service_name[] = "AVTransport";
-    char action_name[25];
+    const char service_name[] = "AVTransport";
+    char action_name[26] = "";
 
-    getSoapAction(req, service_name, sizeof(service_name), action_name, sizeof(action_name));
+    char* arguments = NULL;
+    if (!getSoapAction(req, service_name, sizeof(service_name), action_name, sizeof(action_name), &arguments))
+        return ESP_FAIL;
 
-    if (strcmp(service_name, "AVTransport") != 0) {
-        ESP_LOGI(TAG, "SOAP service name mismatch. Discarding");
+    if (strlen(action_name) == 0) {
         httpd_resp_send_500(req);
-        return ESP_OK;
+        return ESP_OK; // Warning already sent in getSoapAction
     }
 
-    ESP_LOGW(TAG, "Action %s not implemented yet", action_name);
+    char* response = NULL;
+    if (av_transport_execute(action_name, arguments, &response)) {
+        sendSoapOk(req, service_name, action_name, response);
+        free(response);
+    } else {
+        ESP_LOGW(TAG, "Action %s of %s not implemented yet", action_name, service_name);
+        httpd_resp_send(req, NULL, 0);
+    }
 
-    httpd_resp_send(req, NULL, 0);
+    free(arguments);
     return ESP_OK;
 } static const httpd_uri_t AVTransport_Control = {
         .uri = "/upnp/AVTransport/Control",
@@ -74,26 +132,27 @@ static esp_err_t AVTransport_Control_handler(httpd_req_t *req) {
 
 static esp_err_t ConnectionManager_Control_handler(httpd_req_t *req) {
     char service_name[] = "ConnectionManager";
-    char action_name[25];
+    char action_name[26] = "";
 
-    getSoapAction(req, service_name, sizeof(service_name), action_name, sizeof(action_name));
+    char* arguments = NULL;
+    if (!getSoapAction(req, service_name, sizeof(service_name), action_name, sizeof(action_name), &arguments))
+        return ESP_FAIL;
 
-    if (strcmp(service_name, "ConnectionManager") != 0) {
-        ESP_LOGI(TAG, "SOAP service name mismatch. Discarding");
+    if (strlen(action_name) == 0) {
         httpd_resp_send_500(req);
-        return ESP_OK;
+        return ESP_OK; // Warning already sent in getSoapAction
     }
 
-    if (strcmp(action_name, "GetProtocolInfo") == 0) {
-        ESP_LOGI(TAG, "Sending protocol info!");
-
-        sendSoapOk(req, service_name, action_name, get_protocol_info_response);
-        return ESP_OK;
+    char* response = NULL;
+    if (connection_manager_execute(action_name, arguments, &response)) {
+        sendSoapOk(req, service_name, action_name, response);
+//        free(response); // All responses here are static and should NOT be freed!
     } else {
-        ESP_LOGW(TAG, "Action %s not implemented yet", action_name);
+        ESP_LOGW(TAG, "Action %s of %s not implemented yet", action_name, service_name);
+        httpd_resp_send(req, NULL, 0);
     }
 
-    httpd_resp_send(req, NULL, 0);
+    free(arguments);
     return ESP_OK;
 } static const httpd_uri_t ConnectionManager_Control = {
         .uri = "/upnp/ConnectionManager/Control",
@@ -103,19 +162,27 @@ static esp_err_t ConnectionManager_Control_handler(httpd_req_t *req) {
 
 static esp_err_t RenderingControl_Control_handler(httpd_req_t *req) {
     char service_name[] = "RenderingControl";
-    char action_name[25];
+    char action_name[26] = "";
 
-    getSoapAction(req, service_name, sizeof(service_name), action_name, sizeof(action_name));
+    char* arguments = NULL;
+    if (!getSoapAction(req, service_name, sizeof(service_name), action_name, sizeof(action_name), &arguments))
+        return ESP_FAIL;
 
-    if (strcmp(service_name, "RenderingControl") != 0) {
-        ESP_LOGI(TAG, "SOAP service name mismatch. Discarding");
+    if (strlen(action_name) == 0) {
         httpd_resp_send_500(req);
-        return ESP_OK;
+        return ESP_OK; // Warning already sent in getSoapAction
     }
 
-    ESP_LOGW(TAG, "Action %s not implemented yet", action_name);
+    char* response = NULL;
+    if (rendering_control_execute(action_name, arguments, &response)) {
+        sendSoapOk(req, service_name, action_name, response);
+        free(response);
+    } else {
+        ESP_LOGW(TAG, "Action %s of %s not implemented yet", action_name, service_name);
+        httpd_resp_send(req, NULL, 0);
+    }
 
-    httpd_resp_send(req, NULL, 0);
+    free(arguments);
     return ESP_OK;
 } static const httpd_uri_t RenderingControl_Control = {
         .uri = "/upnp/RenderingControl/Control",
@@ -129,4 +196,8 @@ void start_control(httpd_handle_t server) {
     httpd_register_uri_handler(server, &AVTransport_Control);
     httpd_register_uri_handler(server, &ConnectionManager_Control);
     httpd_register_uri_handler(server, &RenderingControl_Control);
+
+    init_av_transport();
+    init_connection_manager();
+    init_rendering_control();
 }

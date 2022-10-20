@@ -91,3 +91,11 @@ bool wifi_poll_connected(void) {
                                            1000 / portTICK_PERIOD_MS);
     return bits & WIFI_CONNECTED_BIT;
 }
+
+bool wifi_poll_disconnected(void) {
+    EventBits_t bits = xEventGroupWaitBits(wifi_events,
+                                           WIFI_FAIL_BIT,
+                                           pdTRUE, pdFALSE,
+                                           0);
+    return bits & WIFI_FAIL_BIT;
+}

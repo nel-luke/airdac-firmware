@@ -191,8 +191,7 @@ void service_discovery(void) {
 }
 
 static void discovery_send_notify_cb(TimerHandle_t self) {
-    xEventGroupSetBits(upnp_events, DISCOVERY_SEND_NOTIFY_BIT);
-    ESP_LOGI(TAG, "Send notify bit");
+    send_event( DISCOVERY_SEND_NOTIFY);
 }
 
 void start_discovery(const char* ip_addr, const char* uuid) {
@@ -236,11 +235,11 @@ void start_discovery(const char* ip_addr, const char* uuid) {
 
     discovery_send_notify();
     TimerHandle_t notify_timer = xTimerCreate("uPnP Discovery Send Notify", pdMS_TO_TICKS(900000), pdTRUE, NULL, discovery_send_notify_cb);
-    xTimerStart(notify_timer, 0);
+    xTimerStart(notify_timer, portMAX_DELAY);
 
     FD_ZERO(&service_discovery_vars.set);
 
     service_discovery_vars.sender_length = sizeof(service_discovery_vars.sender);
-    service_discovery_vars.tv.tv_sec = 10;
+    service_discovery_vars.tv.tv_sec = 5;
     service_discovery_vars.tv.tv_usec = 0;
 }
