@@ -3,6 +3,29 @@
 #include <string.h>
 #include <stdarg.h>
 
+const struct action_err_s action_err_d[Num_Errs] = {
+{ 0, "" },
+{ 1, "" },
+{ 401, "Invalid Action" },
+{ 402, "Invalid Args" },
+{ 501, "Action Failed" },
+{ 600, "Argument Value Invalid" },
+{ 601, "Argument Value Out of Range" },
+{ 602, "Optional Action Not Implemented" },
+{ 603, "Out of Memory" },
+{ 604, "Human Intervention Required" },
+{ 605, "String Argument Too Long" },
+{ 714, "Illegal MIME-type" },
+{ 715, "Content \'BUSY\'" },
+{ 716, "Resource not found" },
+{ 701, "Transition not available" },
+{ 702, "No contents" },
+{ 717, "Play speed not supported" },
+{ 710, "Seek mode not supported" },
+{ 711, "Illegal seek target" },
+{ 712, "Play mode not supported" },
+};
+
 char* to_xml(unsigned int num_pairs, ...) {
     va_list args1, args2;
     va_start(args1, num_pairs);
@@ -37,8 +60,8 @@ char* to_xml(unsigned int num_pairs, ...) {
     return result;
 }
 
-char* get_argument(char* str, const char* name) {
-    char* arg_start = strstr(str, name);
+char* get_argument(char* str, const char* name, char** next_pos) {
+    char* arg_start = strstr(*next_pos == NULL ? str : *next_pos, name);
 
     if (arg_start == NULL)
         return NULL;
@@ -46,6 +69,7 @@ char* get_argument(char* str, const char* name) {
     arg_start = strstr(arg_start, ">");
     char* arg_end = strstr(arg_start, "<");
     *arg_end = '\0';
+    *next_pos = arg_end + 1;
 
     return arg_start + 1;
 }

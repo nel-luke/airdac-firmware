@@ -2,7 +2,6 @@
 #include "control_common.h"
 #include "../upnp_common.h"
 
-#include <sys/param.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -15,7 +14,6 @@
 #define MAX_VOL 100
 #define MIN_VOL_DB -5120
 #define MAX_VOL_DB 0
-#define CLAMP(a, mini, maxi) MAX(MIN((a), (maxi)), (mini))
 
 static const char DefaultPreset[] = "FactoryDefaults";
 
@@ -85,25 +83,53 @@ static inline void state_changed(uint32_t variables) {
     send_event(RENDERING_CONTROL_CHANGED);
 }
 
-static void ListPresets(char* arguments, char** response) {
+static action_err_t ListPresets(char* arguments, char** response) {
     xSemaphoreTake(rcs_mutex, portMAX_DELAY);
     const char* CurrentPresetNameList = rcs_state.PresetNameList;
 
     *response = to_xml(1, ARG(CurrentPresetNameList));
     xSemaphoreGive(rcs_mutex);
+    
+    return Action_OK;
 }
 
 // There is only one preset, so there is no need to set it
-static void SelectPresets(char* arguments, char** response) {
+static action_err_t SelectPresets(char* arguments, char** response) {
 //    xSemaphoreTake(rcs_mutex, portMAX_DELAY);
 //
 //    xSemaphoreGive(rcs_mutex);
 
     state_changed(PRESETNAMELIST);
+    return Action_OK;
 }
 
+UNIMPLEMENTED(GetBrightness)
+UNIMPLEMENTED(SetBrightness)
+UNIMPLEMENTED(GetContrast)
+UNIMPLEMENTED(SetContrast)
+UNIMPLEMENTED(GetSharpness)
+UNIMPLEMENTED(SetSharpness)
+UNIMPLEMENTED(GetRedVideoGain)
+UNIMPLEMENTED(SetRedVideoGain)
+UNIMPLEMENTED(GetGreenVideoGain)
+UNIMPLEMENTED(SetGreenVideoGain)
+UNIMPLEMENTED(GetBlueVideoGain)
+UNIMPLEMENTED(SetBlueVideoGain)
+UNIMPLEMENTED(GetRedVideoBlackLevel)
+UNIMPLEMENTED(SetRedVideoBlackLevel)
+UNIMPLEMENTED(GetGreenVideoBlackLevel)
+UNIMPLEMENTED(SetGreenVideoBlackLevel)
+UNIMPLEMENTED(GetBlueVideoBlackLevel)
+UNIMPLEMENTED(SetBlueVideoBlackLevel)
+UNIMPLEMENTED(GetColorTemperature)
+UNIMPLEMENTED(SetColorTemperature)
+UNIMPLEMENTED(GetHorizontalKeystone)
+UNIMPLEMENTED(SetHorizontalKeystone)
+UNIMPLEMENTED(GetVerticalKeystone)
+UNIMPLEMENTED(SetVerticalKeystone)
+
 // There is only a master channel, so the answer is the same regardless of channel sent
-static void GetMute(char* arguments, char** response) {
+static action_err_t GetMute(char* arguments, char** response) {
     char CurrentMute[2] = { 0 };
 
     xSemaphoreTake(rcs_mutex, portMAX_DELAY);
@@ -111,21 +137,27 @@ static void GetMute(char* arguments, char** response) {
 
     *response = to_xml(1, ARG(CurrentMute));
     xSemaphoreGive(rcs_mutex);
+
+    return Action_OK;
 }
 
-static void SetMute(char* arguments, char** response) {
+static action_err_t SetMute(char* arguments, char** response) {
+    ARG_START();
     GET_ARG(DesiredMute);
 
-    if (DesiredMute != NULL) {
+    if (DesiredMute != NULL && (DesiredMute[0] == '0' || DesiredMute[0] == '1') ) {
         xSemaphoreTake(rcs_mutex, portMAX_DELAY);
         rcs_state.Mute = DesiredMute[0] == '1' ? true : false;
         xSemaphoreGive(rcs_mutex);
+    } else {
+        return Invalid_Args;
     }
 
     state_changed(MUTE);
+    return Action_OK;
 }
 
-static void GetVolume(char* arguments, char** response) {
+static action_err_t GetVolume(char* arguments, char** response) {
     char CurrentVolume[4] = { 0 };
 
     xSemaphoreTake(rcs_mutex, portMAX_DELAY);
@@ -133,25 +165,35 @@ static void GetVolume(char* arguments, char** response) {
 
     *response = to_xml(1, ARG(CurrentVolume));
     xSemaphoreGive(rcs_mutex);
+
+    return Action_OK;
 }
 
-static void SetVolume(char* arguments, char** response) {
+static action_err_t SetVolume(char* arguments, char** response) {
+    ARG_START();
     GET_ARG(DesiredVolume);
 
     if (DesiredVolume != NULL) {
-        int volume = CLAMP(atol(DesiredVolume), MIN_VOL, MAX_VOL);
-        int volume_db = CLAMP(floor(log10((double) volume / 100) * 2560), MIN_VOL_DB, MAX_VOL_DB);
+        int volume = atol(DesiredVolume);
+
+        if (volume < MIN_VOL || volume > MAX_VOL)
+            return Out_Of_Range;
+
+        int volume_db = floor(log10((double) volume / 100) * 2560);
 
         xSemaphoreTake(rcs_mutex, portMAX_DELAY);
         rcs_state.Volume = volume;
         rcs_state.VolumeDB = volume_db;
         xSemaphoreGive(rcs_mutex);
+    } else {
+        return Invalid_Args;
     }
 
     state_changed(VOLUME | VOLUMEDB);
+    return Action_OK;
 }
 
-static void GetVolumeDB(char* arguments, char** response) {
+static action_err_t GetVolumeDB(char* arguments, char** response) {
     char CurrentVolume[6] = { 0 };
 
     xSemaphoreTake(rcs_mutex, portMAX_DELAY);
@@ -159,35 +201,73 @@ static void GetVolumeDB(char* arguments, char** response) {
 
     *response = to_xml(1, ARG(CurrentVolume));
     xSemaphoreGive(rcs_mutex);
+
+    return Action_OK;
 }
 
-static void SetVolumeDB(char* arguments, char** response) {
+static action_err_t SetVolumeDB(char* arguments, char** response) {
+    ARG_START();
     GET_ARG(DesiredVolume);
 
     if (DesiredVolume != NULL) {
-        int volume_db = CLAMP(atol(DesiredVolume), MIN_VOL_DB, MAX_VOL_DB);
-        int volume = CLAMP(floor(pow10((double) volume_db / 2560) * 100), MIN_VOL, MAX_VOL);
+        int volume_db = atol(DesiredVolume);
+
+        if (volume_db < MIN_VOL_DB || volume_db > MAX_VOL_DB)
+            return Out_Of_Range;
+
+        int volume = floor(pow10((double) volume_db / 2560) * 100);
 
         xSemaphoreTake(rcs_mutex, portMAX_DELAY);
         rcs_state.VolumeDB = volume;
         rcs_state.Volume = volume_db;
         xSemaphoreGive(rcs_mutex);
+    } else {
+        return Invalid_Args;
     }
 
     state_changed(VOLUMEDB | VOLUME);
+    return Action_OK;
 }
 
-static void GetVolumeDBRange(char* arguments, char** response) {
+static action_err_t GetVolumeDBRange(char* arguments, char** response) {
     int MinValue = MIN_VOL_DB;
     int MaxValue = MAX_VOL_DB;
 
     *response = to_xml(2, ARG(MinValue), ARG(MaxValue));
+    return Action_OK;
 }
 
-#define NUM_ACTIONS 9
+UNIMPLEMENTED(GetLoudness)
+UNIMPLEMENTED(SetLoudness)
+
+#define NUM_ACTIONS 35
 static const struct action action_list[NUM_ACTIONS] = {
         ACTION(ListPresets),
         ACTION(SelectPresets),
+        ACTION(GetBrightness),
+        ACTION(SetBrightness),
+        ACTION(GetContrast),
+        ACTION(SetContrast),
+        ACTION(GetSharpness),
+        ACTION(SetSharpness),
+        ACTION(GetRedVideoGain),
+        ACTION(SetRedVideoGain),
+        ACTION(GetGreenVideoGain),
+        ACTION(SetGreenVideoGain),
+        ACTION(GetBlueVideoGain),
+        ACTION(SetBlueVideoGain),
+        ACTION(GetRedVideoBlackLevel),
+        ACTION(SetRedVideoBlackLevel),
+        ACTION(GetGreenVideoBlackLevel),
+        ACTION(SetGreenVideoBlackLevel),
+        ACTION(GetBlueVideoBlackLevel),
+        ACTION(SetBlueVideoBlackLevel),
+        ACTION(GetColorTemperature),
+        ACTION(SetColorTemperature),
+        ACTION(GetHorizontalKeystone),
+        ACTION(SetHorizontalKeystone),
+        ACTION(GetVerticalKeystone),
+        ACTION(SetVerticalKeystone),
         ACTION(GetMute),
         ACTION(SetMute),
         ACTION(GetVolume),
@@ -195,17 +275,20 @@ static const struct action action_list[NUM_ACTIONS] = {
         ACTION(GetVolumeDB),
         ACTION(SetVolumeDB),
         ACTION(GetVolumeDBRange),
+        ACTION(GetLoudness),
+        ACTION(SetLoudness)
 };
 
-bool rendering_control_execute(const char* action_name, char* arguments, char** response) {
+action_err_t rendering_control_execute(const char* action_name, char* arguments, char** response) {
+    action_err_t err = Invalid_Action;
     int i = 0;
     while (i < NUM_ACTIONS) {
         if (strcmp(action_name, action_list[i].name) == 0) {
-            (*action_list[i].handle)(arguments, response);
+            err = (*action_list[i].handle)(arguments, response);
             break;
         }
         i++;
     }
 
-    return i < NUM_ACTIONS;
+    return err;
 }

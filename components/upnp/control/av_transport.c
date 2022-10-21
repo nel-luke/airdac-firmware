@@ -1,5 +1,4 @@
 #include "av_transport.h"
-#include "control_common.h"
 #include "../upnp_common.h"
 
 #include <stdio.h>
@@ -56,7 +55,7 @@ enum var_opt {
 };
 typedef enum var_opt var_opt_t;
 
-static const char* var_opt_string[NUM_OPTS] = {
+static const char* var_opt_str[NUM_OPTS] = {
         "NOT_IMPLEMENTED",
         "STOPPED",
         "PAUSED_PLAYBACK",
@@ -93,12 +92,12 @@ struct {
     uint32_t CurrentTrack;
     char CurrentTrackDuration[9];
     char CurrentMediaDuration[9];
-    const char* CurrentTrackMetaData;
+    char* CurrentTrackMetaData;
     char* CurrentTrackURI;
     char* AVTransportURI;
-    const char* AVTransportURIMetaData;
+    char* AVTransportURIMetaData;
     char* NextAVTransportURI;
-    const char* NextAVTransportURIMetaData;
+    char* NextAVTransportURIMetaData;
     char* CurrentTransportActions;
     char RelativeTimePosition[9];
     char AbsoluteTimePosition[9];
@@ -141,22 +140,22 @@ struct {
 };
 static SemaphoreHandle_t avt_mutex;
 
-#define CHECK_VAR_OPT(bit, name) CHECK_VAR_H(bit, #name, "%s", var_opt_string[avt_state.name])
+#define CHECK_VAR_OPT(bit, name) CHECK_VAR_H(bit, #name, "%s", var_opt_str[avt_state.name])
 #define CHECK_VAR_INT(bit, name) CHECK_VAR_H(bit, #name, "%d", avt_state.name)
 #define CHECK_VAR_STR(bit, name) CHECK_VAR_H(bit, #name, "%s", avt_state.name)
-#define INIT_STRING(name, var_opt_name) avt_state.name = (char*)var_opt_string[var_opt_name]
+#define INIT_STRING(name, var_opt_name) avt_state.name = (char*)var_opt_str[var_opt_name]
 
 void init_av_transport(void) {
     avt_events = xEventGroupCreate();
     avt_mutex = xSemaphoreCreateMutex();
     xEventGroupSetBits(avt_events, ALL_EVENT_BITS);
 
-    INIT_STRING(CurrentTrackMetaData, NOT_IMPLEMENTED);
+    INIT_STRING(CurrentTrackMetaData, NOTHING);
     INIT_STRING(CurrentTrackURI, NOTHING);
     INIT_STRING(AVTransportURI, NOTHING);
-    INIT_STRING(AVTransportURIMetaData, NOT_IMPLEMENTED);
+    INIT_STRING(AVTransportURIMetaData, NOTHING);
     INIT_STRING(NextAVTransportURI, NOTHING);
-    INIT_STRING(NextAVTransportURIMetaData, NOT_IMPLEMENTED);
+    INIT_STRING(NextAVTransportURIMetaData, NOTHING);
     INIT_STRING(CurrentTransportActions, AVAILABLE_ACTIONS);
 }
 
@@ -217,57 +216,75 @@ static inline void state_changed(uint32_t variables) {
     send_event(AV_TRANSPORT_CHANGED);
 }
 
-static void SetAVTransportURI(char* arguments, char** response) {
+static action_err_t SetAVTransportURI(char* arguments, char** response) {
+    ARG_START();
     GET_ARG(CurrentURI);
-    // GET_ARG(CurrentURIMetaData);
+    GET_ARG(CurrentURIMetaData);
 
-    if (CurrentURI != NULL) {
-        xSemaphoreTake(avt_mutex, portMAX_DELAY);
-        if (strlen(avt_state.AVTransportURI) != 0)
-            free(avt_state.AVTransportURI);
+    if (CurrentURI == NULL || CurrentURIMetaData == NULL)
+        return Invalid_Args;
 
-        avt_state.AVTransportURI = malloc(strlen(CurrentURI) + 1);
-        strcpy(avt_state.AVTransportURI, CurrentURI);
-        avt_state.CurrentTrackURI = avt_state.AVTransportURI;
+    xSemaphoreTake(avt_mutex, portMAX_DELAY);
+    if (strlen(avt_state.AVTransportURI) != 0)
+        free(avt_state.AVTransportURI);
 
-        avt_state.NumberOfTracks = 1;
-        avt_state.CurrentTrack = 1;
-        switch (avt_state.TransportState) {
-            case STATE_NO_MEDIA_PRESENT:
-                avt_state.TransportState = STATE_STOPPED;
-                break;
-            case STATE_PLAYING:
-                avt_state.TransportState = STATE_TRANSITIONING;
-                break;
-            default:
-                ;
-        }
-        xSemaphoreGive(avt_mutex);
+    avt_state.AVTransportURI = malloc(strlen(CurrentURI) + 1);
+    strcpy(avt_state.AVTransportURI, CurrentURI);
+    avt_state.CurrentTrackURI = avt_state.AVTransportURI;
+
+    if (strlen(avt_state.AVTransportURIMetaData) != 0)
+        free(avt_state.AVTransportURIMetaData);
+
+    avt_state.AVTransportURIMetaData = malloc(strlen(CurrentURIMetaData) + 1);
+    strcpy(avt_state.AVTransportURIMetaData, CurrentURIMetaData);
+    avt_state.CurrentTrackMetaData = avt_state.AVTransportURIMetaData;
+
+    avt_state.NumberOfTracks = 1;
+    avt_state.CurrentTrack = 1;
+    switch (avt_state.TransportState) {
+        case STATE_NO_MEDIA_PRESENT:
+            avt_state.TransportState = STATE_STOPPED;
+            break;
+        case STATE_PLAYING:
+            avt_state.TransportState = STATE_TRANSITIONING;
+            break;
+        default:
+            ;
     }
+    xSemaphoreGive(avt_mutex);
 
     state_changed(AVTRANSPORTURI | AVTRANSPORTURIMETADATA | CURRENTTRACKURI |
-                        NUMBEROFTRACKS | CURRENTTRACK | TRANSPORTSTATE);
+                CURRENTTRACKMETADATA | NUMBEROFTRACKS | CURRENTTRACK | TRANSPORTSTATE);
+    return Action_OK;
 }
 
-static void SetNextAVTransportURI(char* arguments, char** response) {
+static action_err_t SetNextAVTransportURI(char* arguments, char** response) {
+    ARG_START();
     GET_ARG(NextURI);
-    // GET_ARG(CurrentURIMetaData);
+    GET_ARG(NextURIMetaData);
 
-    if (NextURI != NULL) {
-        xSemaphoreTake(avt_mutex, portMAX_DELAY);
-        if (strlen(avt_state.NextAVTransportURI) != 0)
-            free(avt_state.NextAVTransportURI);
+    if (NextURI == NULL || NextURIMetaData == NULL)
+        return Invalid_Args;
 
-        avt_state.NextAVTransportURI = malloc(strlen(NextURI) + 1);
-        strcpy(avt_state.NextAVTransportURI, NextURI);
+    xSemaphoreTake(avt_mutex, portMAX_DELAY);
+    if (strlen(avt_state.NextAVTransportURI) != 0)
+        free(avt_state.NextAVTransportURI);
 
-        xSemaphoreGive(avt_mutex);
-    }
+    avt_state.NextAVTransportURI = malloc(strlen(NextURI) + 1);
+    strcpy(avt_state.NextAVTransportURI, NextURI);
 
-    state_changed(NEXTAVTRANSPORTURI);
+    if (strlen(avt_state.NextAVTransportURIMetaData) != 0)
+        free(avt_state.NextAVTransportURIMetaData);
+
+    avt_state.NextAVTransportURIMetaData = malloc(strlen(NextURIMetaData) + 1);
+    strcpy(avt_state.NextAVTransportURIMetaData, NextURIMetaData);
+    xSemaphoreGive(avt_mutex);
+
+    state_changed(NEXTAVTRANSPORTURI | NEXTAVTRANSPORTURIMETADATA);
+    return Action_OK;
 }
 
-static void GetMediaInfo(char* arguments, char** response) {
+static action_err_t GetMediaInfo(char* arguments, char** response) {
     xSemaphoreTake(avt_mutex, portMAX_DELAY);
     char NrTracks[3];
     itoa(avt_state.NumberOfTracks, NrTracks, 10);
@@ -276,28 +293,32 @@ static void GetMediaInfo(char* arguments, char** response) {
     const char* CurrentURIMetaData = avt_state.AVTransportURIMetaData;
     const char* NextURI = avt_state.NextAVTransportURI;
     const char* NextURIMetaData = avt_state.NextAVTransportURIMetaData;
-    const char* PlayMedium = var_opt_string[avt_state.PlaybackStorageMedium];
-    const char* RecordMedium = var_opt_string[avt_state.RecordStorageMedium];
-    const char* WriteStatus = var_opt_string[avt_state.RecordMediumWriteStatus];
+    const char* PlayMedium = var_opt_str[avt_state.PlaybackStorageMedium];
+    const char* RecordMedium = var_opt_str[avt_state.RecordStorageMedium];
+    const char* WriteStatus = var_opt_str[avt_state.RecordMediumWriteStatus];
 
     *response = to_xml(9, ARG(NrTracks), ARG(MediaDuration), ARG(CurrentURI),
                        ARG(CurrentURIMetaData), ARG(NextURI), ARG(NextURIMetaData),
                        ARG(PlayMedium), ARG(RecordMedium), ARG(WriteStatus));
     xSemaphoreGive(avt_mutex);
+
+    return Action_OK;
 }
 
-static void GetTransportInfo(char* arguments, char** response) {
+static action_err_t GetTransportInfo(char* arguments, char** response) {
     xSemaphoreTake(avt_mutex, portMAX_DELAY);
-    const char* CurrentTransportState = var_opt_string[avt_state.TransportState];
-    const char* CurrentTransportStatus = var_opt_string[avt_state.TransportStatus];
-    const char* CurrentSpeed = var_opt_string[avt_state.TransportPlaySpeed];
+    const char* CurrentTransportState = var_opt_str[avt_state.TransportState];
+    const char* CurrentTransportStatus = var_opt_str[avt_state.TransportStatus];
+    const char* CurrentSpeed = var_opt_str[avt_state.TransportPlaySpeed];
 
     *response = to_xml(3, ARG(CurrentTransportState), 
                        ARG(CurrentTransportStatus), ARG(CurrentSpeed));
     xSemaphoreGive(avt_mutex);
+
+    return Action_OK;
 }
 
-static void GetPositionInfo(char* arguments, char** response) {
+static action_err_t GetPositionInfo(char* arguments, char** response) {
     xSemaphoreTake(avt_mutex, portMAX_DELAY);
     char Track[3];
     itoa(avt_state.CurrentTrack, Track, 10);
@@ -314,31 +335,40 @@ static void GetPositionInfo(char* arguments, char** response) {
     *response = to_xml(8, ARG(Track), ARG(TrackDuration), ARG(TrackMetaData), ARG(TrackURI),
                        ARG(RelTime), ARG(AbsTime), ARG(RelCount), ARG(AbsCount));
     xSemaphoreGive(avt_mutex);
+
+    return Action_OK;
 }
 
-static void GetDeviceCapabilities(char* arguments, char** response) {
+static action_err_t GetDeviceCapabilities(char* arguments, char** response) {
     xSemaphoreTake(avt_mutex, portMAX_DELAY);
-    const char* PlayMedia = var_opt_string[avt_state.PossiblePlaybackStorageMedia];
-    const char* RecMedia = var_opt_string[avt_state.PossibleRecordStorageMedia];
-    const char* RecQualityModes = var_opt_string[avt_state.PossibleRecordQualityModes];
+    const char* PlayMedia = var_opt_str[avt_state.PossiblePlaybackStorageMedia];
+    const char* RecMedia = var_opt_str[avt_state.PossibleRecordStorageMedia];
+    const char* RecQualityModes = var_opt_str[avt_state.PossibleRecordQualityModes];
 
     *response = to_xml(3, ARG(PlayMedia), ARG(RecMedia), ARG(RecQualityModes));
     xSemaphoreGive(avt_mutex);
+
+    return Action_OK;
 }
 
-static void GetTransportSettings(char* arguments, char** response) {
+static action_err_t GetTransportSettings(char* arguments, char** response) {
     xSemaphoreTake(avt_mutex, portMAX_DELAY);
-    const char* PlayMode = var_opt_string[avt_state.CurrentPlayMode];
-    const char* RecQualityMode = var_opt_string[avt_state.CurrentRecordQualityMode];
+    const char* PlayMode = var_opt_str[avt_state.CurrentPlayMode];
+    const char* RecQualityMode = var_opt_str[avt_state.CurrentRecordQualityMode];
 
     *response = to_xml(2, ARG(PlayMode), ARG(RecQualityMode));
     xSemaphoreGive(avt_mutex);
+
+    return Action_OK;
 }
 
-static void Stop(char* arguments, char** response) {
+static action_err_t Stop(char* arguments, char** response) {
+    action_err_t ret = Action_OK;
+
     xSemaphoreTake(avt_mutex, portMAX_DELAY);
     switch (avt_state.TransportState) {
         case STATE_NO_MEDIA_PRESENT:
+            ret = Cannot_Transition;
             break;
         default:
             avt_state.TransportState = STATE_STOPPED;
@@ -346,9 +376,12 @@ static void Stop(char* arguments, char** response) {
     xSemaphoreGive(avt_mutex);
 
     state_changed(TRANSPORTSTATE);
+    return ret;
 }
 
-static void Play(char* arguments, char** response) {
+static action_err_t Play(char* arguments, char** response) {
+    action_err_t ret = Action_OK;
+
     xSemaphoreTake(avt_mutex, portMAX_DELAY);
     if (strlen(avt_state.AVTransportURI) != 0) {
         switch (avt_state.TransportState) {
@@ -358,26 +391,45 @@ static void Play(char* arguments, char** response) {
                 avt_state.TransportState = STATE_PLAYING;
                 break;
             default:
-                ;
+                ret = Cannot_Transition;
         }
+    } else {
+        ret = No_Contents;
     }
     xSemaphoreGive(avt_mutex);
 
     state_changed(TRANSPORTSTATE);
+    return ret;
 }
 
-static void Pause(char* arguments, char** response) {
+static action_err_t Pause(char* arguments, char** response) {
+    action_err_t ret = Action_OK;
+
     xSemaphoreTake(avt_mutex, portMAX_DELAY);
-    if (avt_state.TransportState == STATE_PLAYING)
-        avt_state.TransportState = STATE_PAUSED_PLAYBACK;
+    switch (avt_state.TransportState) {
+        case STATE_PLAYING:
+            avt_state.TransportState = STATE_PAUSED_PLAYBACK;
+            break;
+        default:
+            ret = Cannot_Transition;
+    }
     xSemaphoreGive(avt_mutex);
 
     state_changed(TRANSPORTSTATE);
+    return ret;
 }
 
-static void Seek(char* arguments, char** response) {
+UNIMPLEMENTED(Record)
+
+static action_err_t Seek(char* arguments, char** response) {
+    action_err_t ret = Action_OK;
+
+    ARG_START();
     GET_ARG(Unit);
     GET_ARG(Target);
+
+    if (Unit == NULL || Target == NULL)
+        return Invalid_Args;
 
     xSemaphoreTake(avt_mutex, portMAX_DELAY);
     if (avt_state.TransportState & (STATE_PLAYING | STATE_STOPPED | STATE_PAUSED_PLAYBACK)) {
@@ -392,47 +444,78 @@ static void Seek(char* arguments, char** response) {
 
         avt_state.A_Arg_TYPE_SeekTarget = malloc(strlen(Target)+1);
         strcpy(avt_state.A_Arg_TYPE_SeekTarget, Target);
+    } else {
+        ret = Cannot_Transition;
     }
 
 //    avt_state.TransportState = STATE_TRANSITIONING;
     xSemaphoreGive(avt_mutex);
 
 //    state_changed(TRANSPORTSTATE);
+    return ret;
 }
 
-static void Next(char* arguments, char** response) {
-    xSemaphoreTake(avt_mutex, portMAX_DELAY);
-    if (avt_state.TransportState & (STATE_PLAYING | STATE_STOPPED | STATE_PAUSED_PLAYBACK)) {
+static action_err_t Next(char* arguments, char** response) {
+    action_err_t ret = Action_OK;
 
+    xSemaphoreTake(avt_mutex, portMAX_DELAY);
+    switch (avt_state.TransportState) {
+        case STATE_PLAYING:
+        case STATE_STOPPED:
+        case STATE_PAUSED_PLAYBACK:
+            break;
+        default:
+            ret = Cannot_Transition;
     }
     xSemaphoreGive(avt_mutex);
+
+    return ret;
 }
 
-static void Previous(char* arguments, char** response) {
-    xSemaphoreTake(avt_mutex, portMAX_DELAY);
-    if (avt_state.TransportState & (STATE_PLAYING | STATE_STOPPED | STATE_PAUSED_PLAYBACK)) {
+static action_err_t Previous(char* arguments, char** response) {
+    action_err_t ret = Action_OK;
 
+    xSemaphoreTake(avt_mutex, portMAX_DELAY);
+    switch (avt_state.TransportState) {
+        case STATE_PLAYING:
+        case STATE_STOPPED:
+        case STATE_PAUSED_PLAYBACK:
+            break;
+        default:
+            ret = Cannot_Transition;
     }
     xSemaphoreGive(avt_mutex);
+
+    return ret;
 }
 
-static void SetPlayMode(char* arguments, char** response) {
+static action_err_t SetPlayMode(char* arguments, char** response) {
+    ARG_START();
+    GET_ARG(NewPlayMode);
+
+    if (NewPlayMode == NULL)
+        return Invalid_Args;
 //    xSemaphoreTake(avt_mutex, portMAX_DELAY);
 
 //    xSemaphoreGive(avt_mutex);
 
     state_changed(CURRENTPLAYMODE);
+    return Action_OK;
 }
 
-static void GetCurrentTransportAction(char* arguments, char** response) {
+UNIMPLEMENTED(SetRecordQualityMode)
+
+static action_err_t GetCurrentTransportAction(char* arguments, char** response) {
     xSemaphoreTake(avt_mutex, portMAX_DELAY);
     const char* Actions = avt_state.CurrentTransportActions;
 
     *response = to_xml(1, ARG(Actions));
     xSemaphoreGive(avt_mutex);
+
+    return Action_OK;
 }
 
-#define NUM_ACTIONS 15
+#define NUM_ACTIONS 17
 static const struct action action_list[NUM_ACTIONS] = {
         ACTION(SetAVTransportURI),
         ACTION(SetNextAVTransportURI),
@@ -444,22 +527,25 @@ static const struct action action_list[NUM_ACTIONS] = {
         ACTION(Stop),
         ACTION(Play),
         ACTION(Pause),
+        ACTION(Record),
         ACTION(Seek),
         ACTION(Next),
         ACTION(Previous),
         ACTION(SetPlayMode),
+        ACTION(SetRecordQualityMode),
         ACTION(GetCurrentTransportAction)
 };
 
-bool av_transport_execute(const char* action_name, char* arguments, char** response) {
+action_err_t av_transport_execute(const char* action_name, char* arguments, char** response) {
+    action_err_t err = Invalid_Action;
     int i = 0;
     while (i < NUM_ACTIONS) {
         if (strcmp(action_name, action_list[i].name) == 0) {
-            (*action_list[i].handle)(arguments, response);
+            err = (*action_list[i].handle)(arguments, response);
             break;
         }
         i++;
     }
 
-    return i < NUM_ACTIONS;
+    return err;
 }

@@ -442,7 +442,7 @@
         <stateVariable sendEvents="no">
             <name>CurrentTrackMetaData</name>
             <dataType>string</dataType>
-            <defaultValue>NOT_IMPLEMENTED</defaultValue>
+<!--            <defaultValue>NOT_IMPLEMENTED</defaultValue>-->
         </stateVariable>
         <stateVariable sendEvents="no">
             <name>CurrentTrackURI</name>
@@ -455,7 +455,7 @@
         <stateVariable sendEvents="no">
             <name>AVTransportURIMetaData</name>
             <dataType>string</dataType>
-            <defaultValue>NOT_IMPLEMENTED</defaultValue>
+<!--            <defaultValue>NOT_IMPLEMENTED</defaultValue>-->
         </stateVariable>
         <stateVariable sendEvents="no">
             <name>NextAVTransportURI</name>
@@ -464,7 +464,7 @@
         <stateVariable sendEvents="no">
             <name>NextAVTransportURIMetaData</name>
             <dataType>string</dataType>
-            <defaultValue>NOT_IMPLEMENTED</defaultValue>
+<!--            <defaultValue>NOT_IMPLEMENTED</defaultValue>-->
         </stateVariable>
         <stateVariable sendEvents="no">
             <name>RelativeTimePosition</name>

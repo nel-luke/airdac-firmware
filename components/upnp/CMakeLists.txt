@@ -19,6 +19,7 @@ set(COMPONENT_SRCS
 
 set(COMPONENT_EMBED_TXTFILES
         ./xml/SoapResponseOk.xml
+        ./xml/SoapResponseErr.xml
         ./xml/rootDesc.xml
         ./xml/AVTransport.xml
         ./xml/ConnectionManager.xml
