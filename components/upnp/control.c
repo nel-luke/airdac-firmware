@@ -90,11 +90,11 @@ retry_write:
     }
     buff[req->content_len] = '\0';
 
-    char* arg_start = strstr(buff+180, "<m:");
+    char* arg_start = strstr(buff+100, ":Body>");
     if (arg_start == NULL)
         goto parse_error;
 
-    arg_start = strstr(arg_start, ">");
+    arg_start = strstr(arg_start+6, ">");
     if (arg_start == NULL) {
 parse_error:
         ESP_LOGW(TAG, "SOAPAction parse error (%s | %s). Discarding request", action_name, service_name);
@@ -103,10 +103,18 @@ parse_error:
     }
 
     arg_start++;
-    char* arg_end = strstr(arg_start, "</m:");
+    char* arg_end = strstr(arg_start, ":Body>");
 
     if (arg_end == NULL)
-        goto exit; // Request with no arguments
+        goto parse_error;
+
+    while (*(--arg_end) != '<')
+        ;
+    while (*(--arg_end) != '<')
+        ;
+
+    if (arg_end <= arg_start)
+        goto exit;
 
     *arg_end = '\0';
 

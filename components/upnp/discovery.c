@@ -66,31 +66,31 @@ static char usn_string[90];
 
 static char rec_buf[500];
 
-static inline void send_root_device_1(const char* fmt) {
+static inline void send_root_device_1(const char* fmt, struct sockaddr* send_to, socklen_t len) {
     snprintf(usn_string, sizeof(usn_string), "%s::%s", service_discovery_vars.uuid, root_device_nt1);
     snprintf(send_buf, sizeof(send_buf), fmt, service_discovery_vars.ip_addr,
              root_device_nt1, usn_string);
     sendto(service_discovery_vars.sockp, send_buf, strlen(send_buf), 0,
-           (struct sockaddr*)&service_discovery_vars.groupSock, sizeof(service_discovery_vars.groupSock));
+           send_to, len);
 }
 
-static inline void send_root_device_2(const char* fmt) {
+static inline void send_root_device_2(const char* fmt, struct sockaddr* send_to, socklen_t len) {
     snprintf(nt_string, sizeof(nt_string), "%s", service_discovery_vars.uuid);
     snprintf(send_buf, sizeof(send_buf), fmt, service_discovery_vars.ip_addr,
              nt_string, nt_string);
     sendto(service_discovery_vars.sockp, send_buf, strlen(send_buf), 0,
-           (struct sockaddr*)&service_discovery_vars.groupSock, sizeof(service_discovery_vars.groupSock));
+           send_to, len);
 }
 
-static inline void send_root_device_3(const char* fmt) {
+static inline void send_root_device_3(const char* fmt, struct sockaddr* send_to, socklen_t len) {
     snprintf(usn_string, sizeof(usn_string), "%s::%s", service_discovery_vars.uuid, root_device_nt3);
     snprintf(send_buf, sizeof(send_buf), fmt, service_discovery_vars.ip_addr,
              root_device_nt3, usn_string);
     sendto(service_discovery_vars.sockp, send_buf, strlen(send_buf), 0,
-           (struct sockaddr*)&service_discovery_vars.groupSock, sizeof(service_discovery_vars.groupSock));
+           send_to, len);
 }
 
-static void send_service(const char* fmt, const enum ServiceType num) {
+static void send_service(const char* fmt, const enum ServiceType num, struct sockaddr* send_to, socklen_t len) {
     switch (num) {
         case RenderingControl:
             snprintf(usn_string, sizeof(usn_string), "%s::%s", service_discovery_vars.uuid, service_rendering_control);
@@ -111,16 +111,16 @@ static void send_service(const char* fmt, const enum ServiceType num) {
             abort(); // Should never happen
     };
     sendto(service_discovery_vars.sockp, send_buf, strlen(send_buf), 0,
-           (struct sockaddr*)&service_discovery_vars.groupSock, sizeof(service_discovery_vars.groupSock));
+           send_to, len);
 }
 
-static void send_all(const char* fmt) {
-    send_root_device_1(fmt);
-    send_root_device_2(fmt);
-    send_root_device_3(fmt);
-    send_service(fmt, RenderingControl);
-    send_service(fmt, ConnectionManager);
-    send_service(fmt, AVTransport);
+static void send_all(const char* fmt, struct sockaddr* send_to, socklen_t len) {
+    send_root_device_1(fmt, send_to, len);
+    send_root_device_2(fmt, send_to, len);
+    send_root_device_3(fmt, send_to, len);
+    send_service(fmt, RenderingControl, send_to, len);
+    send_service(fmt, ConnectionManager, send_to, len);
+    send_service(fmt, AVTransport, send_to, len);
 }
 
 void discovery_send_notify() {
@@ -130,7 +130,7 @@ void discovery_send_notify() {
 
     // Send messages three times in a row
     for (int i = 0; i < 3; i++) {
-        send_all(notify_fmt);
+        send_all(notify_fmt, (struct sockaddr*)&service_discovery_vars.groupSock, sizeof(service_discovery_vars.groupSock));
         vTaskDelay(500 / portTICK_PERIOD_MS);
     }
 }
@@ -143,29 +143,23 @@ static void handle_msearch_message(void) {
 
     uint8_t mx = MIN((int) (*(mx_start + 4) - '0'), 5);
     uint32_t random_wait_msec = esp_random() % (mx * 1000);
+    vTaskDelay(random_wait_msec / portTICK_PERIOD_MS);
 
     char *st_start = strstr(rec_buf, "ST: ");
     if (strstr(st_start, "ssdp:all") != NULL) {
-        vTaskDelay(random_wait_msec / portTICK_PERIOD_MS);
-        send_all(msearch_resp_fmt);
+        send_all(msearch_resp_fmt, &service_discovery_vars.sender, sizeof(service_discovery_vars.sender));
     } else if (strstr(st_start, root_device_nt1) != NULL) {
-        vTaskDelay(random_wait_msec / portTICK_PERIOD_MS);
-        send_root_device_1(msearch_resp_fmt);
+        send_root_device_1(msearch_resp_fmt, &service_discovery_vars.sender, sizeof(service_discovery_vars.sender));
     } else if (strstr(st_start, service_discovery_vars.uuid) != NULL) {
-        vTaskDelay(random_wait_msec / portTICK_PERIOD_MS);
-        send_root_device_2(msearch_resp_fmt);
+        send_root_device_2(msearch_resp_fmt, &service_discovery_vars.sender, sizeof(service_discovery_vars.sender));
     } else if (strstr(st_start, root_device_nt3) != NULL) {
-        vTaskDelay(random_wait_msec / portTICK_PERIOD_MS);
-        send_root_device_3(msearch_resp_fmt);
+        send_root_device_3(msearch_resp_fmt, &service_discovery_vars.sender, sizeof(service_discovery_vars.sender));
+    } else if (strstr(st_start, service_av_transport) != NULL) {
+        send_service(msearch_resp_fmt, AVTransport, &service_discovery_vars.sender, sizeof(service_discovery_vars.sender));
+    } else if (strstr(st_start, service_connection_manager) != NULL) {
+        send_service(msearch_resp_fmt, ConnectionManager, &service_discovery_vars.sender, sizeof(service_discovery_vars.sender));
     } else if (strstr(st_start, service_rendering_control) != NULL) {
-        vTaskDelay(random_wait_msec / portTICK_PERIOD_MS);
-        send_service(msearch_resp_fmt, RenderingControl);
-    } else if (strstr(st_start, service_connection_manager) != NULL) {
-        vTaskDelay(random_wait_msec / portTICK_PERIOD_MS);
-        send_service(msearch_resp_fmt, ConnectionManager);
-    } else if (strstr(st_start, service_connection_manager) != NULL) {
-        vTaskDelay(random_wait_msec / portTICK_PERIOD_MS);
-        send_service(msearch_resp_fmt, AVTransport);
+        send_service(msearch_resp_fmt, RenderingControl, &service_discovery_vars.sender, sizeof(service_discovery_vars.sender));
     } else {
         ESP_LOGV(TAG, "Unknown ST. Discarding");
     }
@@ -223,6 +217,7 @@ void start_discovery(const char* ip_addr, const char* uuid) {
     };
 
     // Register to multicast group
+    setsockopt(udpSocket, IPPROTO_IP, IP_DROP_MEMBERSHIP, &group, sizeof(group));
     setsockopt(udpSocket, IPPROTO_IP, IP_ADD_MEMBERSHIP, &group, sizeof(group));
 
     struct sockaddr_in groupSock = {

@@ -61,6 +61,9 @@ char* to_xml(unsigned int num_pairs, ...) {
 }
 
 char* get_argument(char* str, const char* name, char** next_pos) {
+    if (str == NULL)
+        return NULL;
+
     char* arg_start = strstr(*next_pos == NULL ? str : *next_pos, name);
 
     if (arg_start == NULL)

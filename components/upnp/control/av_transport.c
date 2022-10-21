@@ -90,8 +90,8 @@ struct {
     var_opt_t PossibleRecordQualityModes;
     uint32_t NumberOfTracks;
     uint32_t CurrentTrack;
-    char CurrentTrackDuration[9];
-    char CurrentMediaDuration[9];
+    char CurrentTrackDuration[13];
+    char CurrentMediaDuration[13];
     char* CurrentTrackMetaData;
     char* CurrentTrackURI;
     char* AVTransportURI;
@@ -121,8 +121,8 @@ struct {
         NOT_IMPLEMENTED,
         0,
         0,
-        "00:00:00",
-        "00:00:00",
+        "00:00:00.000",
+        "00:00:00.000",
         NULL,
         NULL,
         NULL,
@@ -225,12 +225,6 @@ static action_err_t SetAVTransportURI(char* arguments, char** response) {
         return Invalid_Args;
 
     xSemaphoreTake(avt_mutex, portMAX_DELAY);
-    if (strlen(avt_state.AVTransportURI) != 0)
-        free(avt_state.AVTransportURI);
-
-    avt_state.AVTransportURI = malloc(strlen(CurrentURI) + 1);
-    strcpy(avt_state.AVTransportURI, CurrentURI);
-    avt_state.CurrentTrackURI = avt_state.AVTransportURI;
 
     if (strlen(avt_state.AVTransportURIMetaData) != 0)
         free(avt_state.AVTransportURIMetaData);
@@ -238,6 +232,15 @@ static action_err_t SetAVTransportURI(char* arguments, char** response) {
     avt_state.AVTransportURIMetaData = malloc(strlen(CurrentURIMetaData) + 1);
     strcpy(avt_state.AVTransportURIMetaData, CurrentURIMetaData);
     avt_state.CurrentTrackMetaData = avt_state.AVTransportURIMetaData;
+
+
+
+    if (strlen(avt_state.AVTransportURI) != 0)
+        free(avt_state.AVTransportURI);
+
+    avt_state.AVTransportURI = malloc(strlen(CurrentURI) + 1);
+    strcpy(avt_state.AVTransportURI, CurrentURI);
+    avt_state.CurrentTrackURI = avt_state.AVTransportURI;
 
     avt_state.NumberOfTracks = 1;
     avt_state.CurrentTrack = 1;
@@ -254,15 +257,18 @@ static action_err_t SetAVTransportURI(char* arguments, char** response) {
     xSemaphoreGive(avt_mutex);
 
     state_changed(AVTRANSPORTURI | AVTRANSPORTURIMETADATA | CURRENTTRACKURI |
-                CURRENTTRACKMETADATA | NUMBEROFTRACKS | CURRENTTRACK | TRANSPORTSTATE);
+                CURRENTTRACKMETADATA | CURRENTTRACKDURATION | CURRENTMEDIADURATION |
+                NUMBEROFTRACKS | CURRENTTRACK | TRANSPORTSTATE);
     return Action_OK;
 }
 
+#include <esp_log.h>
 static action_err_t SetNextAVTransportURI(char* arguments, char** response) {
     ARG_START();
     GET_ARG(NextURI);
     GET_ARG(NextURIMetaData);
 
+    ESP_LOGI("NextURI", "I'm called!");
     if (NextURI == NULL || NextURIMetaData == NULL)
         return Invalid_Args;
 
