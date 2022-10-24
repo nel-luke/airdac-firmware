@@ -27,8 +27,6 @@ void service_wifi(void) {
 }
 
 void wifi_start(const char* host_name) {
-    ESP_LOGI(TAG, "Starting Wi-Fi...");
-
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 

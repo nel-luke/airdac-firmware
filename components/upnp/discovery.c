@@ -185,7 +185,7 @@ void service_discovery(void) {
 }
 
 static void discovery_send_notify_cb(TimerHandle_t self) {
-    send_event( DISCOVERY_SEND_NOTIFY);
+    flag_event(DISCOVERY_SEND_NOTIFY);
 }
 
 void start_discovery(const char* ip_addr, const char* uuid) {
@@ -235,6 +235,6 @@ void start_discovery(const char* ip_addr, const char* uuid) {
     FD_ZERO(&service_discovery_vars.set);
 
     service_discovery_vars.sender_length = sizeof(service_discovery_vars.sender);
-    service_discovery_vars.tv.tv_sec = 5;
-    service_discovery_vars.tv.tv_usec = 0;
+    service_discovery_vars.tv.tv_sec = 0;
+    service_discovery_vars.tv.tv_usec = 50000;
 }

@@ -14,9 +14,9 @@ static void sendSoap(httpd_req_t *req, const char* buf) {
     httpd_resp_set_hdr(req, "EXT", "");
     httpd_resp_set_hdr(req, "Connection", "close");
     httpd_resp_set_type(req, "text/xml; charset=\"utf-8\"");
-    httpd_resp_set_hdr(req, "Server", SERVER_STR);
+    httpd_resp_set_hdr(req, "Server", server_STR);
     httpd_resp_set_hdr(req, "Date", get_date());
-    httpd_resp_set_hdr(req, "User-Agent", USERAGENT_STR);
+    httpd_resp_set_hdr(req, "User-Agent", useragent_STR);
     httpd_resp_sendstr(req, buf);
 }
 
@@ -24,9 +24,10 @@ extern char SoapResponseOk_start[] asm("_binary_SoapResponseOk_xml_start");
 extern char SoapResponseOk_end[] asm("_binary_SoapResponseOk_xml_end");
 static void sendSoapOk(httpd_req_t *req, const char* service_name, const char* action_name, const char* message) {
     const char* mp = message == NULL ? "" : message;
-    size_t buf_len = snprintf(NULL, 0, SoapResponseOk_start, action_name, service_name, mp, action_name) + 1;
+    size_t buf_len = snprintf(NULL, 0, SoapResponseOk_start, action_name, service_name, mp, action_name);
 
     char* buf = malloc(buf_len+1);
+    assert(buf != NULL);
     sprintf(buf, SoapResponseOk_start, action_name, service_name, mp, action_name);
     sendSoap(req, buf);
     free(buf);

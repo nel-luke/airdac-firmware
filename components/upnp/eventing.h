@@ -5,7 +5,7 @@
 
 #define EVENTING_URIS 6
 
-void start_eventing(httpd_handle_t server);
+void start_eventing(httpd_handle_t server, int port);
 void eventing_clean_subscribers(void);
 
 void event_av_transport(const char* message);

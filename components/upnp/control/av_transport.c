@@ -1,9 +1,10 @@
 #include "av_transport.h"
-#include "../upnp_common.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+
+#include <esp_log.h>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -31,6 +32,8 @@
 #define NEXTAVTRANSPORTURIMETADATA      BIT20
 #define CURRENTTRANSPORTACTIONS         BIT21
 static EventGroupHandle_t avt_events;
+
+static const char TAG[] = "av_transport";
 
 enum var_opt {
     NOT_IMPLEMENTED,
@@ -145,6 +148,14 @@ static SemaphoreHandle_t avt_mutex;
 #define CHECK_VAR_STR(bit, name) CHECK_VAR_H(bit, #name, "%s", avt_state.name)
 #define INIT_STRING(name, var_opt_name) avt_state.name = (char*)var_opt_str[var_opt_name]
 
+static FileInfo_t buffer_info = {0 };
+
+void get_stream_info(FileInfo_t* info) {
+    xSemaphoreTake(avt_mutex, portMAX_DELAY);
+    memcpy(info, &buffer_info, sizeof(FileInfo_t));
+    xSemaphoreGive(avt_mutex);
+}
+
 void init_av_transport(void) {
     avt_events = xEventGroupCreate();
     avt_mutex = xSemaphoreCreateMutex();
@@ -213,10 +224,34 @@ inline char* get_av_transport_all(void) {
 
 static inline void state_changed(uint32_t variables) {
     xEventGroupSetBits(avt_events, variables);
-    send_event(AV_TRANSPORT_CHANGED);
+    flag_event(AV_TRANSPORT_CHANGED);
+}
+
+inline char* get_track_url(void) {
+    xSemaphoreTake(avt_mutex, portMAX_DELAY);
+    char* ret = strdup(avt_state.CurrentTrackURI);
+    xSemaphoreGive(avt_mutex);
+    return ret;
+}
+
+static bool get_stream_value(char* metadata, const char* search, uint32_t* value) {
+    char* value_start = strstr(metadata, search);
+    if (value_start != NULL) {
+        value_start += strlen(search);
+        char* value_end = strstr(value_start, "\"");
+        *value_end = '\0';
+        *value = atol(value_start);
+        *value_end = ' ';
+    } else {
+        return false;
+    }
+
+    return true;
 }
 
 static action_err_t SetAVTransportURI(char* arguments, char** response) {
+    action_err_t ret = Action_OK;
+
     ARG_START();
     GET_ARG(CurrentURI);
     GET_ARG(CurrentURIMetaData);
@@ -226,14 +261,53 @@ static action_err_t SetAVTransportURI(char* arguments, char** response) {
 
     xSemaphoreTake(avt_mutex, portMAX_DELAY);
 
-    if (strlen(avt_state.AVTransportURIMetaData) != 0)
-        free(avt_state.AVTransportURIMetaData);
+//    if (strlen(avt_state.AVTransportURIMetaData) != 0)
+//        free(avt_state.AVTransportURIMetaData);
+//
+//    avt_state.AVTransportURIMetaData = malloc(strlen(CurrentURIMetaData) + 1);
+//    strcpy(avt_state.AVTransportURIMetaData, CurrentURIMetaData);
+//    avt_state.CurrentTrackMetaData = avt_state.AVTransportURIMetaData;
 
-    avt_state.AVTransportURIMetaData = malloc(strlen(CurrentURIMetaData) + 1);
-    strcpy(avt_state.AVTransportURIMetaData, CurrentURIMetaData);
-    avt_state.CurrentTrackMetaData = avt_state.AVTransportURIMetaData;
+    const char mime_search[] = "protocolInfo=\"";
+    char* mime_start = strstr(CurrentURIMetaData, mime_search);
+    if (mime_start != NULL) {
+        mime_start += strlen(mime_search);
+        char* mime_end = mime_start;
+        for (int i = 0; i < 3; i++) {
+            while (*(++mime_end) != ':')
+                ;
+        }
+        *mime_end = '\0';
+        if (strstr(protocol_info, mime_start) == NULL)
+            ret = Illegal_Type;
+        *mime_end = ' '; // Insert a non-zero character to allow searching again
+    }
 
+    const char duration_search[] = "duration=\"";
+    char* duration_start = strstr(CurrentURIMetaData, duration_search);
+    if (duration_start != NULL) {
+        duration_start += strlen(duration_search);
+        char* duration_end = strstr(duration_start, "\"");
+        *duration_end = '\0';
+        strcpy(avt_state.CurrentMediaDuration, duration_start);
+        strcpy(avt_state.CurrentTrackDuration, duration_start);
+        *duration_end = ' ';
+    }
 
+    bool success = true;
+    success &= get_stream_value(CurrentURIMetaData, "size=\"", &buffer_info.file_size);
+    success &= get_stream_value(CurrentURIMetaData, "bitrate=\"", &buffer_info.bitrate);
+    success &= get_stream_value(CurrentURIMetaData, "sampleFrequency=\"", &buffer_info.sample_rate);
+    success &= get_stream_value(CurrentURIMetaData, "bitsPerSample=\"", &buffer_info.bit_depth);
+    success &= get_stream_value(CurrentURIMetaData, "nrAudioChannels=\"", &buffer_info.channels);
+
+    if (!success) {
+        ESP_LOGW(TAG, "Failed to retrieve some metadata info. Will have to determine them from the file");
+    }
+
+//    printf("File size: %d\nBit rate: %d\nSample rate: %d\nBit depth: %d\nChannels: %d\n",
+//           stream_info.file_size, stream_info.bitrate, stream_info.sample_rate,
+//           stream_info.bit_depth, stream_info.channels);
 
     if (strlen(avt_state.AVTransportURI) != 0)
         free(avt_state.AVTransportURI);
@@ -247,6 +321,7 @@ static action_err_t SetAVTransportURI(char* arguments, char** response) {
     switch (avt_state.TransportState) {
         case STATE_NO_MEDIA_PRESENT:
             avt_state.TransportState = STATE_STOPPED;
+            flag_event(START_STREAMING);
             break;
         case STATE_PLAYING:
             avt_state.TransportState = STATE_TRANSITIONING;
@@ -254,12 +329,14 @@ static action_err_t SetAVTransportURI(char* arguments, char** response) {
         default:
             ;
     }
+    flag_event(START_STREAMING);
+
     xSemaphoreGive(avt_mutex);
 
     state_changed(AVTRANSPORTURI | AVTRANSPORTURIMETADATA | CURRENTTRACKURI |
                 CURRENTTRACKMETADATA | CURRENTTRACKDURATION | CURRENTMEDIADURATION |
                 NUMBEROFTRACKS | CURRENTTRACK | TRANSPORTSTATE);
-    return Action_OK;
+    return ret;
 }
 
 #include <esp_log.h>
@@ -547,7 +624,7 @@ action_err_t av_transport_execute(const char* action_name, char* arguments, char
     int i = 0;
     while (i < NUM_ACTIONS) {
         if (strcmp(action_name, action_list[i].name) == 0) {
-            err = (*action_list[i].handle)(arguments, response);
+            err = action_list[i].handle(arguments, response);
             break;
         }
         i++;

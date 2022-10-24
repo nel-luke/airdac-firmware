@@ -1,7 +1,7 @@
 set(COMPONENT_ADD_INCLUDEDIRS ./include)
 
 set(COMPONENT_REQUIRES )
-set(COMPONENT_PRIV_REQUIRES esp_http_server esp_http_client nvs_flash)
+set(COMPONENT_PRIV_REQUIRES esp_http_server esp_http_client nvs_flash audio)
 
 set(COMPONENT_SRCS
         ./upnp.c
@@ -15,6 +15,7 @@ set(COMPONENT_SRCS
         ./eventing.c
         ./description.c
         ./discovery.c
+        ./stream.c
         )
 
 set(COMPONENT_EMBED_TXTFILES

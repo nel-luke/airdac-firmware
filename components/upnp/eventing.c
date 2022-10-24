@@ -13,6 +13,7 @@
 #define SUBSCRIBER_REFRESH_MS 100000
 
 static const char *TAG = "upnp_eventing";
+static int local_port;
 
 struct subscription {
     TickType_t timeout;
@@ -49,7 +50,7 @@ static void send_state_change_event(enum subscription_service service_id, const 
         esp_http_client_config_t notify_config = {
                 .url = subscription_list[i].service[service_id].callback,
                 .method = HTTP_METHOD_NOTIFY,
-                .port = SERVER_PORT,
+                .port = local_port,
                 .keep_alive_enable = false
         };
         esp_http_client_handle_t  notify_request = esp_http_client_init(&notify_config);
@@ -93,11 +94,11 @@ void send_protocol_info(void) {
             esp_http_client_config_t notify_config = {
                     .url = subscription_list[i].service[ConnectionManager].callback,
                     .method = HTTP_METHOD_NOTIFY,
-                    .port = SERVER_PORT,
+                    .port = local_port,
                     .keep_alive_enable = false,
-                    .user_agent = USERAGENT_STR
+                    .user_agent = useragent_STR
             };
-            esp_http_client_handle_t  notify_request = esp_http_client_init(&notify_config);
+            esp_http_client_handle_t notify_request = esp_http_client_init(&notify_config);
             esp_http_client_set_header(notify_request, "Content-Type", "text/xml; charset=\"utf-8\"");
             esp_http_client_set_post_field(notify_request, GetProtocolInfoEvent_start,
                                            (int) (GetProtocolInfoEvent_end - GetProtocolInfoEvent_start-1));
@@ -229,13 +230,13 @@ static void add_subscriber(httpd_req_t *req, enum subscription_service service_i
     if (send_notify) {
         switch (service_id) {
             case AVTransport:
-                send_event(AV_TRANSPORT_SEND_ALL);
+                flag_event(AV_TRANSPORT_SEND_ALL);
                 break;
             case ConnectionManager:
-                send_event(SEND_PROTOCOL_INFO);
+                flag_event(SEND_PROTOCOL_INFO);
                 break;
             case RenderingControl:
-                send_event(RENDERING_CONTROL_SEND_ALL);
+                flag_event(RENDERING_CONTROL_SEND_ALL);
                 break;
             default:
                 abort();
@@ -331,11 +332,12 @@ static esp_err_t RenderingControl_Unsubscribe_handler(httpd_req_t *req) {
 };
 
 static void eventing_clean_subscribers_cb(TimerHandle_t self) {
-    send_event( EVENTING_CLEAN_SUBSCRIBERS);
+    flag_event(EVENTING_CLEAN_SUBSCRIBERS);
 }
 
-void start_eventing(httpd_handle_t server) {
+void start_eventing(httpd_handle_t server, int port) {
     ESP_LOGI(TAG, "Starting eventing");
+    local_port = port;
     memset(subscription_list, 0, sizeof(subscription_list));
     subscription_mutex = xSemaphoreCreateMutex();
     TimerHandle_t clean_subscriber_timer = xTimerCreate("Eventing Subscriber Timer", pdMS_TO_TICKS(SUBSCRIBER_REFRESH_MS), pdTRUE, NULL, eventing_clean_subscribers_cb);

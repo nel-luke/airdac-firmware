@@ -80,7 +80,7 @@ inline char* get_rendering_control_all(void) {
 
 static inline void state_changed(uint32_t variables) {
     xEventGroupSetBits(rcs_events, variables);
-    send_event(RENDERING_CONTROL_CHANGED);
+    flag_event(RENDERING_CONTROL_CHANGED);
 }
 
 static action_err_t ListPresets(char* arguments, char** response) {
@@ -284,7 +284,7 @@ action_err_t rendering_control_execute(const char* action_name, char* arguments,
     int i = 0;
     while (i < NUM_ACTIONS) {
         if (strcmp(action_name, action_list[i].name) == 0) {
-            err = (*action_list[i].handle)(arguments, response);
+            err = action_list[i].handle(arguments, response);
             break;
         }
         i++;

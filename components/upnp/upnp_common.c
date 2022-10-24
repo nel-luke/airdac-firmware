@@ -7,6 +7,9 @@
 //static const char* TAG = "upnp_common";
 EventGroupHandle_t upnp_events;
 
+const char* server_STR = SERVER_STR;
+const char* useragent_STR = "AirDAC";
+
 static char date_str[50];
 
 char* get_date(void) {
@@ -22,9 +25,13 @@ inline void start_events(void) {
 }
 
 inline uint32_t get_events(void) {
-    return xEventGroupWaitBits(upnp_events, ALL_EVENT_BITS, pdTRUE, pdFALSE, 0);
+    return xEventGroupWaitBits(upnp_events, ALL_EVENT_BITS, pdFALSE, pdFALSE, 0);
 }
 
-inline void send_event(uint32_t event_bits) {
-    xEventGroupSetBits(upnp_events, event_bits);
+inline void flag_event(uint32_t event) {
+    xEventGroupSetBits(upnp_events, event);
+}
+
+inline void unflag_event(uint32_t event) {
+    xEventGroupClearBits(upnp_events, event);
 }

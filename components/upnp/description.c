@@ -12,8 +12,8 @@ static ssize_t rootDesc_bytes;
 
 static void send_description(httpd_req_t *req,  char* buf, ssize_t buf_len) {
     httpd_resp_set_type(req, "text/xml; charset=\"utf-8\"");
-    httpd_resp_set_hdr(req, "Server", SERVER_STR);
-    httpd_resp_set_hdr(req, "User-Agent", USERAGENT_STR);
+    httpd_resp_set_hdr(req, "Server", server_STR);
+    httpd_resp_set_hdr(req, "User-Agent", useragent_STR);
     httpd_resp_set_hdr(req, "Connection", "close");
     httpd_resp_sendstr(req, buf);
 }
@@ -83,9 +83,9 @@ static esp_err_t RenderingControl_handler(httpd_req_t *req)
         .handler = RenderingControl_handler
 };
 
-void start_description(httpd_handle_t server, const char* friendly_name, const char* uuid, const char* ip_addr) {
+void start_description(httpd_handle_t server, int port, const char* friendly_name, const char* uuid, const char* ip_addr) {
     ESP_LOGI(TAG, "Starting description");
-    rootDesc_bytes = snprintf(rootDesc_buf, sizeof(rootDesc_buf), rootDesc_start, friendly_name, uuid, ip_addr, SERVER_PORT);
+    rootDesc_bytes = snprintf(rootDesc_buf, sizeof(rootDesc_buf), rootDesc_start, friendly_name, uuid, ip_addr, port);
 
     httpd_register_uri_handler(server, &rootDesc);
     httpd_register_uri_handler(server, &logo);

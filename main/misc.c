@@ -23,9 +23,8 @@ static void sntp_synced_callback(struct timeval *tv)
 }
 
 static const char sntp_server_name[] = "pool.ntp.org";
-void misc_init_sntp(void)
+void misc_start_sntp(void)
 {
-    ESP_LOGI(TAG, "Initializing SNTP");
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
 #if LWIP_DHCP_GET_NTP_SRV && SNTP_MAX_SERVERS > 1
     sntp_servermode_dhcp(1);

@@ -45,6 +45,8 @@ extern const struct action_err_s action_err_d[Num_Errs];
 typedef enum action_err action_err_t;
 extern const char* action_err_str[];
 
+extern const char protocol_info[];
+
 #define UNIMPLEMENTED(name) action_err_t name(char* arguments, char** response) { return Action_Not_Implemented; }
 struct action {
     const char* name;

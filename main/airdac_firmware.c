@@ -1,6 +1,7 @@
 #include "misc.h"
 #include "wifi.h"
 #include "upnp.h"
+#include "audio.h"
 
 #include <string.h>
 
@@ -19,13 +20,27 @@
 #define MAX_HOST_NAME_LEN 16
 #define DEFAULT_HOST_NAME "AirDAC"
 
-static const char *TAG = "app";
+static const char *TAG = "airdac";
 
 static char friendly_name[50];
 
 _Noreturn void app_main(void)
 {
-    // Initialize NVS
+    ESP_LOGI(TAG, "========== AirDAC ==========");
+
+    ESP_LOGI(TAG, "Initializing GPIO");
+    gpio_config_t gpio = {
+            .pin_bit_mask = 0x00000021,
+            .intr_type = GPIO_INTR_DISABLE,
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_down_en = 0,
+            .pull_up_en = 0
+    };
+    gpio_config(&gpio);
+    gpio_set_level(GPIO_NUM_2, 1);
+    gpio_set_level(GPIO_NUM_4, 1);
+
+    ESP_LOGI(TAG, "Initializing NVS");
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         // NVS partition is truncated and needs to be erased
@@ -57,17 +72,20 @@ _Noreturn void app_main(void)
     }
     ESP_LOGI(TAG, "Host name is %s", host_name);
 
-    // Create default event loop needed by the main app
+    ESP_LOGI(TAG, "Starting event loop");
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
+    ESP_LOGI(TAG, "Starting Wi-Fi");
     // Initialize networking stack
     ESP_ERROR_CHECK(esp_netif_init());
     esp_netif_t *netif = esp_netif_create_default_wifi_sta();
     ESP_ERROR_CHECK(esp_netif_set_hostname(netif, host_name));
-
-    misc_init_sntp();
     wifi_start(host_name);
 
+    ESP_LOGI(TAG, "Starting SNTP");
+    misc_start_sntp();
+
+    ESP_LOGI(TAG, "Retrieving MAC address...");
     uint8_t mac_addr[6];
     ESP_ERROR_CHECK(esp_netif_get_mac(netif, mac_addr));
     ESP_LOGI(TAG, "MAC address is %x:%x:%x:%x:%x:%x",
@@ -82,20 +100,14 @@ _Noreturn void app_main(void)
     char ip_addr[INET_ADDRSTRLEN];
     lwip_inet_ntop(AF_INET, &ip_struct, ip_addr, INET_ADDRSTRLEN);
 
+    ESP_LOGI(TAG, "Starting audio driver");
+    audio_start(4096, 20);
+
+    ESP_LOGI(TAG, "Starting uPnP");
     strcpy(friendly_name, host_name);
-    upnp_start(ip_addr, mac_addr, friendly_name);
+    upnp_start(4096, 19, 80, ip_addr, mac_addr, friendly_name);
 
-    gpio_config_t gpio = {
-            .pin_bit_mask = 0x00000021,
-            .intr_type = GPIO_INTR_DISABLE,
-            .mode = GPIO_MODE_OUTPUT,
-            .pull_down_en = 0,
-            .pull_up_en = 0
-    };
-    gpio_config(&gpio);
-    gpio_set_level(GPIO_NUM_2, 1);
-    gpio_set_level(GPIO_NUM_4, 1);
-
+    ESP_LOGI(TAG, "Setup finished. Entering infinite loop");
     uint32_t bit = 1;
     while (1) {
         service_wifi();

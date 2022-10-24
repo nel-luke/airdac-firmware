@@ -3,6 +3,21 @@
 #include <string.h>
 #include <stdarg.h>
 
+const char protocol_info[] =
+        "<Source></Source><Sink>"
+        "http-get:*:*:*,"
+        "http-get:*:audio/mp3:*,"
+        "http-get:*:audio/basic:*,"
+        "http-get:*:audio/ogg:*,"
+        "http-get:*:audio/ac3:*,"
+        "http-get:*:audio/aac:*,"
+        "http-get:*:audio/vorbis:*,"
+        "http-get:*:audio/flac:*,"
+        "http-get:*:audio/x-flac:*,"
+        "http-get:*:audio/x-wav:*"
+        "</Sink>"
+;
+
 const struct action_err_s action_err_d[Num_Errs] = {
 { 0, "" },
 { 1, "" },
