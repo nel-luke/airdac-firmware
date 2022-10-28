@@ -101,7 +101,7 @@ _Noreturn void app_main(void)
     lwip_inet_ntop(AF_INET, &ip_struct, ip_addr, INET_ADDRSTRLEN);
 
     ESP_LOGI(TAG, "Starting audio driver");
-    audio_start(4096, 20);
+    audio_start(4096, 15);
 
     ESP_LOGI(TAG, "Starting uPnP");
     strcpy(friendly_name, host_name);

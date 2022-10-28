@@ -1,9 +1,11 @@
 #include "audio.h"
 #include "audio_common.h"
 #include "flac.h"
+#include "mad_wrapper.h"
 
 #include <stdbool.h>
 #include <memory.h>
+#include <sys/param.h>
 
 #include <esp_log.h>
 #include <driver/i2s.h>
@@ -30,34 +32,194 @@
 static const char TAG[] = "audio";
 
 static xTaskHandle audio_task;
-static SemaphoreHandle_t i2s_sem;
-
+static SemaphoreHandle_t audio_mutex;
 static AudioDecoderConfig_t decoder_config;
 
-static void* local_buff;
-static uint32_t local_len;
+static const unsigned int max_sample_rate = 48000;
 
-struct file_data {
-    uint32_t blocksize;
-    uint32_t sample_rate;
-    uint32_t channels;
-    uint32_t bits_per_sample;
-    uint64_t total_samples;
-    uint32_t buffer_bytes;
+struct {
+    const uint8_t* current_buffer;
+    size_t buffer_length;
+    size_t remaining_bytes;
+    size_t offset;
+    size_t total_written;
+    int32_t* write_buff;
+    unsigned int sample_rate;
+} buffer_info = { 0 };
+
+static inline void send_ready(void) {
+    decoder_config.decoder_ready_cb();
+}
+
+void send_finished(void) {
+    decoder_config.decoder_finished_cb();
+}
+
+void send_fail(void) {
+    decoder_config.decoder_failed_cb();
+}
+
+static size_t get_buffer(uint8_t* encoded_buffer, size_t buffer_length) {
+    assert(buffer_length != 0);
+    size_t len = buffer_length;
+
+    uint32_t bits = 0;
+    xTaskNotifyWait(0, 0, &bits, 0);
+    if (bits & STOP_DECODER)
+        goto return_finished;
+
+    if (buffer_info.remaining_bytes == 0) {
+        send_ready();
+        xTaskNotifyWait(0, ULONG_MAX, &bits, portMAX_DELAY);
+//        ESP_LOGI(TAG, "Buffer swapped!");
+        if (bits & CONTINUE_DECODER) {
+            buffer_info.remaining_bytes = buffer_info.buffer_length;
+            buffer_info.offset = 0;
+        } else if (bits & STOP_DECODER) {
+return_finished:
+            send_finished();
+            return false;
+        } else {
+                // Shouldn't happen
+                abort();
+        }
+    }
+    
+    len = MIN(len, buffer_info.remaining_bytes);
+
+    buffer_info.remaining_bytes -= len;
+
+    memcpy(encoded_buffer, buffer_info.current_buffer + buffer_info.offset, len);
+    buffer_info.offset += len;
+    buffer_info.total_written += len;
+
+    if (buffer_info.total_written == decoder_config.file_size) {
+        send_finished();
+    } else if (len < buffer_length){
+        size_t tmp = buffer_length - len;
+//        ESP_LOGI(TAG, "Have %d, need %d", *len, tmp);
+        len += get_buffer(encoded_buffer+ len, tmp);
+    }
+
+    return len;
+}
+
+static void write(const int32_t* left_samples, const int32_t* right_samples, size_t sample_length, unsigned int sample_rate, unsigned int bit_depth) {
+    if (buffer_info.sample_rate != sample_rate) {
+        buffer_info.sample_rate = sample_rate;
+        i2s_set_sample_rates(I2S_NUM, sample_rate);
+    }
+
+    if (buffer_info.write_buff == NULL) {
+        buffer_info.write_buff = malloc(2*sample_length*sizeof(int32_t));
+        assert(buffer_info.write_buff != NULL);
+    }
+
+    size_t shift = bit_depth == 24 ? 8 : 0;
+
+    int j = 0;
+    for (int i = 0; i < sample_length; i++) {
+        buffer_info.write_buff[j++] = left_samples[i] << shift;
+        buffer_info.write_buff[j++] = right_samples[i] << shift;
+    }
+
+    size_t bytes_written;
+    i2s_write(I2S_NUM, buffer_info.write_buff, 2*sample_length*sizeof(int32_t), &bytes_written, portMAX_DELAY);
+}
+
+static void decoder_failed(void) {
+    decoder_config.decoder_failed_cb();
+}
+
+static size_t bytes_elapsed(void) {
+    return buffer_info.total_written;
+}
+
+static size_t total_bytes(void) {
+    return decoder_config.file_size;
+}
+
+void audio_reset(void) {
+    xTaskNotify(audio_task, STOP_DECODER, eSetBits);
+    xSemaphoreTake(audio_mutex, portMAX_DELAY);
+    delete_flac_decoder();
+    free(buffer_info.write_buff);
+    memset(&buffer_info, 0, sizeof(buffer_info));
+//    delete_mad_decoder();
+    xSemaphoreGive(audio_mutex);
+}
+
+void audio_decoder_continue(const uint8_t* new_buffer, size_t buffer_length) {
+    buffer_info.current_buffer = new_buffer;
+    buffer_info.buffer_length = buffer_length;
+
+    xTaskNotify(audio_task, CONTINUE_DECODER, eSetBits);
+}
+
+static const AudioContext_t context = {
+//        .set_sample_rate = set_sample_rate,
+        .get_buffer = get_buffer,
+        .write = write,
+        .decoder_failed = decoder_failed,
+        .bytes_elapsed = bytes_elapsed,
+        .total_bytes = total_bytes
 };
 
-void init_i2s(int sample_rate, int bit_depth, int channels) {
+bool audio_init_decoder(const AudioDecoderConfig_t* config) {
+    xSemaphoreTake(audio_mutex, portMAX_DELAY);
+    ESP_LOGI(TAG, "Initializing audio");
+    // Search for content type
+
+    // if (strcmp(content_type, decoder[i])==0)
+    // if not found return false
+//    bool b = xSemaphoreTake(audio_mutex, 0);
+//    assert(b);
+
+    memcpy(&decoder_config, config, sizeof(decoder_config));
+    buffer_info.sample_rate = max_sample_rate;
+//    xSemaphoreGive(audio_mutex);
+
+    init_flac_decoder();
+//    init_mad_decoder();
+
+    xSemaphoreGive(audio_mutex);
+    xTaskNotify(audio_task, RUN_DECODER, eSetBits);
+    return true;
+}
+
+_Noreturn static void audio_loop(void* args) {
+    ESP_LOGI(TAG, "Audio loop started");
+    uint32_t bits;
+    while(1) {
+        xTaskNotifyWait(0, ULONG_MAX, &bits, portMAX_DELAY);
+        if (bits & (STOP_DECODER | CONTINUE_DECODER)) {
+            continue;
+        }
+
+        ESP_LOGI(TAG, "Starting player!");
+        if (bits & RUN_DECODER) {
+            xSemaphoreTake(audio_mutex, portMAX_DELAY);
+            run_flac_decoder(&context);
+//            run_mad_decoder(&context);
+            i2s_zero_dma_buffer(I2S_NUM);
+            xSemaphoreGive(audio_mutex);
+            ESP_LOGI(TAG, "Decoder stopped");
+        }
+    }
+}
+
+void audio_start(size_t stack_size, int priority) {
     ESP_LOGI(TAG, "Initializing I2S");
 
     i2s_config_t i2s_config = {
             .mode = I2S_MODE_MASTER | I2S_MODE_TX,
-            .sample_rate = sample_rate,
-            .bits_per_sample = bit_depth,
+            .sample_rate = max_sample_rate,
+            .bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT,
             .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
             .communication_format = I2S_COMM_FORMAT_STAND_I2S,
             .tx_desc_auto_clear = true,
             .dma_buf_count = 8,
-            .dma_buf_len = 1024,
+            .dma_buf_len = 511,
             .use_apll = true,
             .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1
     };
@@ -71,82 +233,12 @@ void init_i2s(int sample_rate, int bit_depth, int channels) {
             .data_in_num = I2S_PIN_NO_CHANGE
     };
     i2s_set_pin(I2S_NUM, &pin_config);
-    //i2s_set_clk(I2S_NUM, sample_rate, bit_depth, channels);
 
 #ifndef WROVER_KIT
     gpio_set_direction(MUTE, GPIO_MODE_OUTPUT);
     gpio_set_level(MUTE, 1);
 #endif
-}
 
-void audio_reset(void) {
-    xTaskNotify(audio_task, STOP, eSetBits);
-
-    xSemaphoreTake(i2s_sem, portMAX_DELAY);
-    i2s_driver_uninstall(I2S_NUM);
-    // I2S driver is deleted so keep the mutex until it is initialized again
-    ESP_LOGI(TAG, "Audio reset successfully");
-}
-
-void send_fail(void) {
-    decoder_config.decoder_fail_cb();
-}
-
-void send_ready(void) {
-    decoder_config.decoder_ready_cb();
-}
-
-void audio_decoder_continue(void* buff, size_t buff_len) {
-    local_buff = buff;
-    local_len = buff_len;
-    xTaskNotify(audio_task, CONTINUE, eSetBits);
-}
-
-void audio_init_buffer(const AudioBufferConfig_t* config) {
-//    xSemaphoreTake(i2s_sem, portMAX_DELAY);
-    init_i2s(config->sample_rate, config->bit_depth, config->channels);
-    xSemaphoreGive(i2s_sem);
-}
-
-bool audio_init_decoder(const AudioDecoderConfig_t* config) {
-    // Search for content type
-
-    // if (strcmp(content_type, decoder[i])==0)
-    // if not found return false
-//    bool b = xSemaphoreTake(audio_mutex, 0);
-//    assert(b);
-
-    memcpy(&decoder_config, config, sizeof(decoder_config));
-//    xSemaphoreGive(audio_mutex);
-
-    xTaskNotify(audio_task, START_FLAC_DECODER, eSetBits);
-    return true;
-}
-
-_Noreturn static void audio_loop(void* args) {
-    ESP_LOGI(TAG, "Audio loop started");
-    uint32_t bits;
-    while(1) {
-        xTaskNotifyWait(0, ULONG_MAX, &bits, portMAX_DELAY);
-        if (bits & (STOP | CONTINUE)) {
-            continue;
-        }
-
-        ESP_LOGI(TAG, "Starting player!");
-        xSemaphoreTake(i2s_sem, portMAX_DELAY);
-        if (bits & START_FLAC_DECODER) {
-            start_flac_decoder(decoder_config.file_size, &local_buff, &local_len);
-            decoder_config.metadata_finished_cb();
-            continue_flac_decoder();
-            stop_flac_decoder();
-        }
-        i2s_zero_dma_buffer(I2S_NUM);
-        xSemaphoreGive(i2s_sem);
-    }
-}
-
-
-void audio_start(size_t stack_size, int priority) {
-    i2s_sem = xSemaphoreCreateBinary();
+    audio_mutex = xSemaphoreCreateMutex();
     xTaskCreate(audio_loop, "Audio Loop", stack_size, NULL, priority, &audio_task);
 }

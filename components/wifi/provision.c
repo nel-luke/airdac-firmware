@@ -2,6 +2,8 @@
 #include "connect.h"
 #include "dns.h"
 
+#include <ctype.h>
+
 #include <esp_log.h>
 #include <esp_system.h>
 #include <esp_wifi.h>
@@ -19,13 +21,47 @@
 static const char TAG[] = "wifi_provision";
 
 static MessageBufferHandle_t cred_buf;
-static int cred_buf_len = MAX_SSID_LEN + MAX_PASSPHRASE_LEN + SSID_PRE_LEN + PASSW_PRE_LEN + 1;
+static const int cred_buf_len = MAX_SSID_LEN + MAX_PASSPHRASE_LEN + SSID_PRE_LEN + PASSW_PRE_LEN + 1;
 
 extern const char form_start[] asm("_binary_form_html_start");
 extern const char form_end[] asm("_binary_form_html_end");
 
 extern const char thank_you_start[] asm("_binary_thank_you_html_start");
 extern const char thank_you_end[] asm("_binary_thank_you_html_end");
+
+static void urlDecode(char *dStr) {
+
+//    unsigned char *dStr = malloc(strlen(str) + 1);
+    char eStr[] = "00"; /* for a hex code */
+
+//    strcpy(dStr, str);
+    unsigned int i; // the counter for the string
+
+//    ESP_LOGI(TAG, "String is %s", dStr);
+    for(i=0;i<strlen(dStr);++i) {
+
+        if(dStr[i] == '%') {
+            if(dStr[i+1] == 0)
+                return;
+
+            if(isxdigit((unsigned char)dStr[i+1]) && isxdigit((unsigned char)dStr[i+2])) {
+                // combine the next two numbers into one
+                eStr[0] = dStr[i+1];
+                eStr[1] = dStr[i+2];
+
+                // convert it to decimal
+                unsigned int x = strtol(eStr, NULL, 16);
+//                ESP_LOGI(TAG, "x is 0x%x", x);
+                if (x == 0x92) x = '\'';
+
+                // remove the hex
+                memmove(&dStr[i+1], &dStr[i+3], strlen(&dStr[i+3])+1);
+                dStr[i] = (unsigned char)x;
+            }
+        }
+        else if(dStr[i] == '+') { dStr[i] = ' '; }
+    }
+}
 
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
@@ -118,6 +154,7 @@ static esp_err_t post_handler(httpd_req_t *req)
         }
 
         remaining -= ret;
+        urlDecode(credentials);
         ESP_LOGI(TAG, "Sending credentials on buffer");
         xMessageBufferSend(cred_buf, credentials, ret, portMAX_DELAY);
     }

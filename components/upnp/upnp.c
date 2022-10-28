@@ -37,29 +37,34 @@ static struct {
     int buff_len;
 } content_info;
 
-static void stream_disconnected_cb(void) {
-    ESP_LOGI(TAG, "Stream disconnected");
-    flag_event(STOP_STREAMING);
-}
-
-static void buffer_ready_cb(void) {
-    ESP_LOGI(TAG, "Buffer ready!");
+static void buffer_ready(void) {
+    ESP_LOGD(TAG, "Buffer ready!");
     flag_event(BUFFER_READY);
 }
 
-static void decoder_ready_cb(void) {
-    ESP_LOGI(TAG, "Decoder ready!");
+static void stream_finished(void) {
+    ESP_LOGI(TAG, "Stream finished");
+    flag_event(STOP_DECODER);
+}
+
+static void stream_failed(void) {
+    ESP_LOGW(TAG, "Stream failed");
+    flag_event(STOP_DECODER);
+}
+
+static void decoder_ready(void) {
+    ESP_LOGD(TAG, "Decoder ready!");
     flag_event(DECODER_READY);
 }
 
-static void metadata_finished_cb(void) {
-//    ESP_LOGI(TAG, "Metadata finished");
-    flag_event(METADATA_FINISHED);
+static void decoder_finished(void) {
+    ESP_LOGI(TAG, "Decoder finished");
+    flag_event(STOP_STREAMER);
 }
 
-static void decoder_fail_cb(void) {
-    ESP_LOGI(TAG, "Decoder failed!");
-    flag_event(STOP_STREAMING);
+static void decoder_failed(void) {
+    ESP_LOGW(TAG, "Decoder failed!");
+    flag_event(STOP_STREAMER);
 }
 
 static httpd_handle_t start_webserver(void)
@@ -79,7 +84,7 @@ static httpd_handle_t start_webserver(void)
     return server;
 }
 
-static esp_err_t head_cb(esp_http_client_event_t *evt) {
+static esp_err_t get_content_cb(esp_http_client_event_t *evt) {
     if (evt->event_id == HTTP_EVENT_ON_HEADER && strcmp(evt->header_key, "Content-Type") == 0) {
         strcpy(content_info.content_type, evt->header_value);
     } else if (evt->event_id == HTTP_EVENT_ON_FINISH) {
@@ -94,7 +99,7 @@ static void get_content_info(const char* url) {
             .url = url,
             .method = HTTP_METHOD_HEAD,
             .port = upnp_info.port+1,
-            .event_handler = head_cb,
+            .event_handler = get_content_cb,
             .user_agent =useragent_STR
     };
     esp_http_client_handle_t head_request = esp_http_client_init(&head_config);
@@ -109,9 +114,9 @@ static void setup_streaming(void) {
     AudioDecoderConfig_t decoder_config = {
             .content_type = content_info.content_type,
             .file_size = content_info.content_length,
-            .decoder_ready_cb = decoder_ready_cb,
-            .metadata_finished_cb = metadata_finished_cb,
-            .decoder_fail_cb = decoder_fail_cb
+            .decoder_ready_cb = decoder_ready,
+            .decoder_finished_cb = decoder_finished,
+            .decoder_failed_cb = decoder_failed,
     };
 
     if (audio_init_decoder(&decoder_config) != true) {
@@ -120,30 +125,15 @@ static void setup_streaming(void) {
         return;
     }
 
-    FileInfo_t file_info;
-    AudioBufferConfig_t buffer_config;
-    get_stream_info(&file_info);
+    start_stream(url, content_info.content_length);
+    free(url);
 
-//    buffer_config.size = (file_info.bitrate / 8) * 5;
-    buffer_config.sample_rate = file_info.sample_rate;
-    buffer_config.bit_depth = file_info.bit_depth;
-    buffer_config.channels = file_info.channels;
-    audio_init_buffer(&buffer_config);
+    const uint8_t* buffer;
+    size_t buffer_length;
+    stream_take_buffer(&buffer, &buffer_length);
 
-    size_t download_size = 8192*100;
-    if (file_info.bitrate == 0) {
-        ESP_LOGW(TAG, "Bitrate was not presented in metadata. Using default download size of %d", download_size);
-    } else {
-//        download_size = file_info.bitrate/8;
-    }
-    content_info.buff_len = download_size;
-
-    start_stream(url, content_info.content_length, download_size);
-    go();
-    void* buff = take_ready_buffer();
-    unflag_event(BUFFER_READY);
-    audio_decoder_continue(buff, content_info.buff_len);
-    go();
+    unflag_event(BUFFER_READY | DECODER_READY);
+    audio_decoder_continue(buffer, buffer_length);
 }
 
 void service_events(void) {
@@ -178,32 +168,38 @@ void service_events(void) {
         send_protocol_info();
     }
 
-    if (bits & STOP_STREAMING) {
-        unflag_event(STOP_STREAMING);
-        audio_reset();
-        release_ready_buffer();
+    if (bits & STOP_STREAMER) {
+        unflag_event(STOP_STREAMER);
+        ESP_LOGI(TAG, "Stopping streamer...");
+        stream_release_buffer();
         stop_stream();
+        ESP_LOGI(TAG, "streamer Success!");
         unflag_event(BUFFER_READY | DECODER_READY);
-    } else if ((bits & BUFFER_READY) && (bits & DECODER_READY)) {
+    }
+
+    if (bits & STOP_DECODER) {
+        unflag_event(STOP_DECODER);
+        ESP_LOGI(TAG, "Stopping decoder...");
+        audio_reset();
+        ESP_LOGI(TAG, "decoder Success!");
         unflag_event(BUFFER_READY | DECODER_READY);
-        release_ready_buffer();
-        void* encoded_buff = take_ready_buffer();
-        audio_decoder_continue(encoded_buff, content_info.buff_len);
-        go();
+    }
+
+    if ((bits & BUFFER_READY) && (bits & DECODER_READY)) {
+        unflag_event(BUFFER_READY | DECODER_READY);
+        ESP_LOGD(TAG, "Servicing");
+        stream_release_buffer();
+        const uint8_t* buffer;
+        size_t buffer_length;
+        stream_take_buffer(&buffer, &buffer_length);
+        audio_decoder_continue(buffer, buffer_length);
+//        stream_continue();
     } else if (bits & START_STREAMING) {
         unflag_event(START_STREAMING);
 
         ESP_LOGI(TAG, "Start STREAMING!");
         setup_streaming();
     }
-
-//    if (bits & STREAM_DISCONNECTED) {
-//        unflag_event(STREAM_DISCONNECTED);
-//        // Notify AVTransport
-//        audio_reset();
-//        release_ready_buffer();
-//        stop_stream();
-//    }
 
     if (bits & EVENTING_CLEAN_SUBSCRIBERS) {
         unflag_event(EVENTING_CLEAN_SUBSCRIBERS);
@@ -221,7 +217,6 @@ _Noreturn void upnp_loop(void* args) {
         service_events();
 
         service_discovery();
-        //vTaskDelay(5 / portTICK_PERIOD_MS);
     }
 }
 
@@ -241,6 +236,16 @@ void upnp_start(size_t stack_size, int priority, int port, const char* ip_addr, 
     start_description(server, port, upnp_info.friendly_name, upnp_info.uuid.uuid_s, upnp_info.ip_addr);
     start_discovery(upnp_info.ip_addr, upnp_info.uuid.uuid_s);
 
+    StreamConfig_t stream_config = {
+            .port = port,
+            .user_agent = useragent_STR,
+            .buffer_count = 4,
+            .buffer_length = 262144,
+            .buffer_ready = buffer_ready,
+            .stream_finished = stream_finished,
+            .stream_failed = stream_failed
+    };
+    init_stream(stack_size, priority-1, &stream_config);
+
     xTaskCreate(upnp_loop, "uPnP Loop", stack_size, NULL, priority, NULL);
-    init_stream(stack_size, priority-1, useragent_STR, port, buffer_ready_cb, stream_disconnected_cb);
 }

@@ -7,6 +7,7 @@ set(COMPONENT_SRCS
         ./audio.c
         ./flac.c
         ./audio_common.c
+        ./mad_wrapper.c
         )
 
 register_component()
@@ -16,7 +17,6 @@ if (DEFINED AAC_DISABLE_SBR)
 else ()
     add_prebuilt_library(libhelix-aac 	lib/libhelix-aac-sbr.a )
 endif()
-
 
 add_prebuilt_library(libmad 		lib/libmad.a)
 add_prebuilt_library(libFLAC 		lib/libFLAC.a )

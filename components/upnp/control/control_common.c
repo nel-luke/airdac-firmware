@@ -7,6 +7,8 @@ const char protocol_info[] =
         "<Source></Source><Sink>"
         "http-get:*:*:*,"
         "http-get:*:audio/mp3:*,"
+        "http-get:*:audio/mp4:*,"
+        "http-get:*:audio/mpeg:*,"
         "http-get:*:audio/basic:*,"
         "http-get:*:audio/ogg:*,"
         "http-get:*:audio/ac3:*,"

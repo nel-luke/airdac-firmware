@@ -2,10 +2,11 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <esp_attr.h>
 
 static const char get_connection_ids_response[] = "<ConnectionIDs>0</ConnectionIDs>";
 
-static const char get_current_connection_info[] =
+EXT_RAM_NOINIT_ATTR static const char get_current_connection_info[] =
         "<RcsID>0</RcsID>"
         "<AVTransportID>0</AVTransportID>"
         "<ProtocolInfo></ProtocolInfo>"

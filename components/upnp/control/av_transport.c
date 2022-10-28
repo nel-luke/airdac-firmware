@@ -33,7 +33,7 @@
 #define CURRENTTRANSPORTACTIONS         BIT21
 static EventGroupHandle_t avt_events;
 
-static const char TAG[] = "av_transport";
+//static const char TAG[] = "av_transport";
 
 enum var_opt {
     NOT_IMPLEMENTED,
@@ -161,12 +161,12 @@ void init_av_transport(void) {
     avt_mutex = xSemaphoreCreateMutex();
     xEventGroupSetBits(avt_events, ALL_EVENT_BITS);
 
-    INIT_STRING(CurrentTrackMetaData, NOTHING);
+    INIT_STRING(CurrentTrackMetaData, NOT_IMPLEMENTED);
     INIT_STRING(CurrentTrackURI, NOTHING);
     INIT_STRING(AVTransportURI, NOTHING);
-    INIT_STRING(AVTransportURIMetaData, NOTHING);
+    INIT_STRING(AVTransportURIMetaData, NOT_IMPLEMENTED);
     INIT_STRING(NextAVTransportURI, NOTHING);
-    INIT_STRING(NextAVTransportURIMetaData, NOTHING);
+    INIT_STRING(NextAVTransportURIMetaData, NOT_IMPLEMENTED);
     INIT_STRING(CurrentTransportActions, AVAILABLE_ACTIONS);
 }
 
@@ -206,6 +206,7 @@ print_chars:
         total_chars *= -1;
         total_chars++;
         response = malloc(total_chars+1);
+        assert(response != NULL);
         goto print_chars;
     }
 
@@ -268,42 +269,42 @@ static action_err_t SetAVTransportURI(char* arguments, char** response) {
 //    strcpy(avt_state.AVTransportURIMetaData, CurrentURIMetaData);
 //    avt_state.CurrentTrackMetaData = avt_state.AVTransportURIMetaData;
 
-    const char mime_search[] = "protocolInfo=\"";
-    char* mime_start = strstr(CurrentURIMetaData, mime_search);
-    if (mime_start != NULL) {
-        mime_start += strlen(mime_search);
-        char* mime_end = mime_start;
-        for (int i = 0; i < 3; i++) {
-            while (*(++mime_end) != ':')
-                ;
-        }
-        *mime_end = '\0';
-        if (strstr(protocol_info, mime_start) == NULL)
-            ret = Illegal_Type;
-        *mime_end = ' '; // Insert a non-zero character to allow searching again
-    }
+//    const char mime_search[] = "protocolInfo=\"";
+//    char* mime_start = strstr(CurrentURIMetaData, mime_search);
+//    if (mime_start != NULL) {
+//        mime_start += strlen(mime_search);
+//        char* mime_end = mime_start;
+//        for (int i = 0; i < 3; i++) {
+//            while (*(++mime_end) != ':')
+//                ;
+//        }
+//        *mime_end = '\0';
+//        if (strstr(protocol_info, mime_start) == NULL)
+//            ret = Illegal_Type;
+//        *mime_end = ' '; // Insert a non-zero character to allow searching again
+//    }
+//
+//    const char duration_search[] = "duration=\"";
+//    char* duration_start = strstr(CurrentURIMetaData, duration_search);
+//    if (duration_start != NULL) {
+//        duration_start += strlen(duration_search);
+//        char* duration_end = strstr(duration_start, "\"");
+//        *duration_end = '\0';
+//        strcpy(avt_state.CurrentMediaDuration, duration_start);
+//        strcpy(avt_state.CurrentTrackDuration, duration_start);
+//        *duration_end = ' ';
+//    }
+//
+//    bool success = true;
+//    success &= get_stream_value(CurrentURIMetaData, "size=\"", &buffer_info.file_size);
+//    success &= get_stream_value(CurrentURIMetaData, "bitrate=\"", &buffer_info.bitrate);
+//    success &= get_stream_value(CurrentURIMetaData, "sampleFrequency=\"", &buffer_info.sample_rate);
+//    success &= get_stream_value(CurrentURIMetaData, "bitsPerSample=\"", &buffer_info.bit_depth);
+//    success &= get_stream_value(CurrentURIMetaData, "nrAudioChannels=\"", &buffer_info.channels);
 
-    const char duration_search[] = "duration=\"";
-    char* duration_start = strstr(CurrentURIMetaData, duration_search);
-    if (duration_start != NULL) {
-        duration_start += strlen(duration_search);
-        char* duration_end = strstr(duration_start, "\"");
-        *duration_end = '\0';
-        strcpy(avt_state.CurrentMediaDuration, duration_start);
-        strcpy(avt_state.CurrentTrackDuration, duration_start);
-        *duration_end = ' ';
-    }
-
-    bool success = true;
-    success &= get_stream_value(CurrentURIMetaData, "size=\"", &buffer_info.file_size);
-    success &= get_stream_value(CurrentURIMetaData, "bitrate=\"", &buffer_info.bitrate);
-    success &= get_stream_value(CurrentURIMetaData, "sampleFrequency=\"", &buffer_info.sample_rate);
-    success &= get_stream_value(CurrentURIMetaData, "bitsPerSample=\"", &buffer_info.bit_depth);
-    success &= get_stream_value(CurrentURIMetaData, "nrAudioChannels=\"", &buffer_info.channels);
-
-    if (!success) {
-        ESP_LOGW(TAG, "Failed to retrieve some metadata info. Will have to determine them from the file");
-    }
+//    if (!success) {
+//        ESP_LOGW(TAG, "Failed to retrieve some metadata info. Will have to determine them from the file");
+//    }
 
 //    printf("File size: %d\nBit rate: %d\nSample rate: %d\nBit depth: %d\nChannels: %d\n",
 //           stream_info.file_size, stream_info.bitrate, stream_info.sample_rate,
