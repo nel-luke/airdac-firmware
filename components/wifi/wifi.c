@@ -38,7 +38,7 @@ void wifi_start(const char* host_name) {
 
     bool poll_connected = true;
     if (err == ESP_ERR_NVS_NOT_FOUND) {
-        ESP_LOGI(TAG, "Credentials not set in NVS! Starting Wi-Fi AP immediately.");
+        ESP_LOGW(TAG, "Credentials not set in NVS! Starting Wi-Fi AP immediately.");
         poll_connected = false;
         goto start_provision;
     }

@@ -136,7 +136,7 @@ void run_mad_decoder(const AudioContext_t* audio_ctx) {
             case CALL_AGAIN:
                 continue;
             case MORE_INPUT:
-                stat->readsize = audio_ctx->get_buffer(stat->buffstart+stat->remaining, stat->readsize);
+                stat->readsize = audio_ctx->fill_buffer(stat->buffstart + stat->remaining, stat->readsize);
                 if (stat->readsize == 0)
                     run = false;
                 break;

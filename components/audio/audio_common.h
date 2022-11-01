@@ -11,7 +11,7 @@
 
 struct AudioContext {
 //    void (*set_sample_rate)(size_t sample_rate);
-    size_t (*get_buffer)(uint8_t* encoded_buffer, size_t buff_len);
+    size_t (*fill_buffer)(uint8_t* encoded_buffer, size_t buff_len);
     void (*write)(const int32_t* left_samples, const int32_t* right_samples, size_t sample_length, unsigned int sample_rate, unsigned int bit_depth);
     void (*decoder_finished)(void);
     void (*decoder_failed)(void);

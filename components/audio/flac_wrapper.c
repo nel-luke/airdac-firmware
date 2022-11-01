@@ -1,4 +1,4 @@
-#include "flac.h"
+#include "flac_wrapper.h"
 
 #include "codecs/FLAC/format.h"
 #include "codecs/FLAC/stream_decoder.h"
@@ -16,7 +16,7 @@ static FLAC__StreamDecoderReadStatus read_callback(const FLAC__StreamDecoder *de
 {
     AudioContext_t* audio_ctx = ctx;
 
-    *bytes = audio_ctx->get_buffer(buffer, *bytes);
+    *bytes = audio_ctx->fill_buffer(buffer, *bytes);
     if (*bytes == 0) {
         return FLAC__STREAM_DECODER_READ_STATUS_ABORT;
     }

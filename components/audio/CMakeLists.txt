@@ -5,9 +5,10 @@ set(COMPONENT_PRIV_REQUIRES )
 
 set(COMPONENT_SRCS
         ./audio.c
-        ./flac.c
+        ./flac_wrapper.c
         ./audio_common.c
         ./mad_wrapper.c
+        ./helix_wrapper.c
         )
 
 register_component()

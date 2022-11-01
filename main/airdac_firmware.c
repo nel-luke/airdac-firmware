@@ -57,7 +57,7 @@ _Noreturn void app_main(void)
     nvs_handle_t nvs;
     err = nvs_open("storage", NVS_READONLY, &nvs);
     if (err == ESP_ERR_NVS_NOT_FOUND) {
-        ESP_LOGI(TAG, "Host name not initialized yet!");
+        ESP_LOGW(TAG, "Host name not initialized yet!");
         ESP_ERROR_CHECK(nvs_open("storage", NVS_READWRITE, &nvs));
         ESP_LOGI(TAG, "Setting host name to %s", DEFAULT_HOST_NAME);
         ESP_ERROR_CHECK(nvs_set_str(nvs, HOST_NAME_KEY, DEFAULT_HOST_NAME));
@@ -105,7 +105,7 @@ _Noreturn void app_main(void)
 
     ESP_LOGI(TAG, "Starting uPnP");
     strcpy(friendly_name, host_name);
-    upnp_start(4096, 19, 80, ip_addr, mac_addr, friendly_name);
+    upnp_start(8192, 19, 80, ip_addr, mac_addr, friendly_name);
 
     ESP_LOGI(TAG, "Setup finished. Entering infinite loop");
     uint32_t bit = 1;
