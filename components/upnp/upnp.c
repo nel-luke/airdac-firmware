@@ -20,7 +20,6 @@
 
 #include <esp_netif.h>
 #include <esp_http_server.h>
-#include <esp_http_client.h>
 
 static const char *TAG = "upnp";
 
@@ -31,25 +30,9 @@ static struct {
     uuid_t uuid;
 } upnp_info;
 
-static struct {
-    char content_type[20];
-    int content_length;
-    int buff_len;
-} content_info;
-
 static void buffer_ready(void) {
     ESP_LOGD(TAG, "Buffer ready!");
     flag_event(BUFFER_READY);
-}
-
-static void stream_finished(void) {
-    ESP_LOGI(TAG, "Stream finished");
-    flag_event(STOP_PLAYBACK);
-}
-
-static void stream_failed(void) {
-    ESP_LOGW(TAG, "Stream failed");
-    flag_event(STOP_PLAYBACK);
 }
 
 static void decoder_ready(void) {
@@ -57,13 +40,12 @@ static void decoder_ready(void) {
     flag_event(DECODER_READY);
 }
 
-static void decoder_finished(void) {
-    ESP_LOGI(TAG, "Decoder finished");
+static void playback_finished(void) {
     flag_event(STOP_PLAYBACK);
 }
 
-static void decoder_failed(void) {
-    ESP_LOGW(TAG, "Decoder failed!");
+static void playback_failed(void) {
+    av_transport_error_occurred();
     flag_event(STOP_PLAYBACK);
 }
 
@@ -71,8 +53,7 @@ static void append_samples(uint32_t samples, uint32_t sample_rate) {
     av_transport_update_counters(samples, sample_rate);
 }
 
-static httpd_handle_t start_webserver(void)
-{
+static httpd_handle_t start_webserver(void) {
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.max_open_sockets = 5;
@@ -88,39 +69,26 @@ static httpd_handle_t start_webserver(void)
     return server;
 }
 
-static esp_err_t get_content_cb(esp_http_client_event_t *evt) {
-    if (evt->event_id == HTTP_EVENT_ON_HEADER && strcmp(evt->header_key, "Content-Type") == 0) {
-        strcpy(content_info.content_type, evt->header_value);
-    } else if (evt->event_id == HTTP_EVENT_ON_FINISH) {
-        content_info.content_length = esp_http_client_get_content_length(evt->client);
-    }
-
-    return ESP_OK;
-}
-
-static void get_content_info(const char* url) {
-    esp_http_client_config_t head_config = {
-            .url = url,
-            .method = HTTP_METHOD_HEAD,
-            .port = upnp_info.port+1,
-            .event_handler = get_content_cb,
-            .user_agent =useragent_STR
-    };
-    esp_http_client_handle_t head_request = esp_http_client_init(&head_config);
-    esp_http_client_perform(head_request);
-    esp_http_client_cleanup(head_request);
-}
-
 static void setup_streaming(void) {
     char* url = get_track_url();
-    get_content_info(url);
+    char content_type[20];
+    size_t content_length = 0;
+
+    stream_get_content_info(url, content_type, &content_length);
+
+    if (content_length == 0 || strlen(content_type) == 0) {
+        ESP_LOGE(TAG, "Setting up stream failed");
+        av_transport_reset();
+        av_transport_error_occurred();
+        return;
+    }
 
     AudioDecoderConfig_t decoder_config = {
-            .content_type = content_info.content_type,
-            .file_size = content_info.content_length,
+            .content_type = content_type,
+            .file_size = content_length,
             .decoder_ready_cb = decoder_ready,
-            .decoder_finished_cb = decoder_finished,
-            .decoder_failed_cb = decoder_failed,
+            .decoder_finished_cb = playback_finished,
+            .decoder_failed_cb = playback_failed,
             .wrote_samples_cb = append_samples
     };
 
@@ -130,7 +98,7 @@ static void setup_streaming(void) {
         return;
     }
 
-    start_stream(url, content_info.content_length);
+    start_stream(url, content_length);
     free(url);
 
     const uint8_t* buffer;
@@ -253,9 +221,9 @@ void upnp_start(size_t stack_size, int priority, int port, const char* ip_addr, 
             .user_agent = useragent_STR,
             .buffer_count = 3,
             .buffer_length = 524288,
-            .buffer_ready = buffer_ready,
-            .stream_finished = stream_finished,
-            .stream_failed = stream_failed
+            .buffer_ready_cb = buffer_ready,
+            .stream_finished_cb = playback_finished,
+            .stream_failed_cb = playback_failed
     };
     init_stream(stack_size, priority-1, &stream_config);
 

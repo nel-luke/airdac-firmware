@@ -36,17 +36,56 @@ static struct {
     bool once;
 } stream_info = { 0 };
 
+static inline void send_ready(void) {
+    stream_info.buffer_ready_cb();
+}
+
+static inline void send_finished(void) {
+    stream_info.stream_finished_cb();
+}
+    
+static inline void send_failed(void) {
+    ESP_LOGW(TAG, "Streamer failed");
+    stream_info.stream_failed_cb();
+}
+
+static esp_err_t get_content_cb(esp_http_client_event_t *evt) {
+    if (evt->event_id == HTTP_EVENT_ON_HEADER && strcmp(evt->header_key, "Content-Type") == 0) {
+        strcpy(evt->user_data, evt->header_value);
+    }
+
+    return ESP_OK;
+}
+
+void stream_get_content_info(const char* url, char* content_type, size_t* content_length) {
+    esp_http_client_config_t head_config = {
+            .url = url,
+            .method = HTTP_METHOD_HEAD,
+            .port = stream_info.port,
+            .user_agent = stream_info.user_agent,
+            .event_handler = get_content_cb,
+            .user_data = content_type
+    };
+    esp_http_client_handle_t head_request = esp_http_client_init(&head_config);
+    esp_http_client_perform(head_request);
+    *content_length = esp_http_client_get_content_length(head_request);
+    ESP_LOGI(TAG, "Content-type: %s | Content-length: %d", content_type, *content_length);
+
+    ESP_ERROR_CHECK(esp_http_client_close(head_request));
+    ESP_ERROR_CHECK(esp_http_client_cleanup(head_request));
+}
+
 static void download_data(void) {
     if (stream_info.bytes_left == 0) {
         ESP_LOGI(TAG, "Download finished!");
-        stream_info.stream_finished();
+        send_finished();
         return;
     }
 
-    int read_len = esp_http_client_read(stream_info.client, stream_info.download_offset, stream_info.buffer_length);
+    int read_len = esp_http_client_read(stream_info.client, stream_info.download_offset, (int)stream_info.buffer_length);
     if (read_len <= 0) {
         ESP_LOGE(TAG, "Error read data");
-        stream_info.stream_failed();
+        send_failed();
         return;
     }
     stream_info.bytes_left -= read_len;
@@ -67,7 +106,7 @@ static void download_data(void) {
         stream_info.download_i = 0;
     }
 
-    stream_info.buffer_ready();
+    send_ready();
     xSemaphoreTake(stream_info.buff_sems[stream_info.download_i], portMAX_DELAY);
 
     stream_info.download_offset = stream_info.buffers[stream_info.download_i];
@@ -124,7 +163,7 @@ void start_stream(const char* url, size_t file_size) {
     esp_err_t err;
     if ((err = esp_http_client_open(stream_info.client, 0)) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
-        stream_info.stream_failed();
+        send_failed();
         return;
     }
 

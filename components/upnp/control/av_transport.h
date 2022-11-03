@@ -15,5 +15,6 @@ char* get_av_transport_changes(void);
 char* get_av_transport_all(void);
 char* get_track_url(void);
 void get_stream_info(FileInfo_t* info);
+void av_transport_error_occurred(void);
 
 #endif //AIRDAC_FIRMWARE_UPNP_CONTROL_AV_TRANSPORT_H

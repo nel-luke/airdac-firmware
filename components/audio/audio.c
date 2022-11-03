@@ -57,10 +57,6 @@ void send_finished(void) {
     decoder_config.decoder_finished_cb();
 }
 
-void send_fail(void) {
-    decoder_config.decoder_failed_cb();
-}
-
 static size_t fill_buffer(uint8_t* encoded_buffer, size_t buffer_length) {
     assert(buffer_length != 0);
 
@@ -94,7 +90,6 @@ static size_t fill_buffer(uint8_t* encoded_buffer, size_t buffer_length) {
         send_finished();
     } else if (len < buffer_length){
         size_t tmp = buffer_length - len;
-//        ESP_LOGI(TAG, "Have %d, need %d", *len, tmp);
         len += fill_buffer(encoded_buffer + len, tmp);
     }
 
@@ -104,6 +99,7 @@ static size_t fill_buffer(uint8_t* encoded_buffer, size_t buffer_length) {
 static bool write(const int32_t* left_samples, const int32_t* right_samples, size_t sample_length, unsigned int sample_rate, unsigned int bit_depth) {
     if (buffer_info.failed) {
         i2s_zero_dma_buffer(I2S_NUM);
+        return false;
     }
 
     if (buffer_info.sample_rate != sample_rate) {
@@ -147,6 +143,7 @@ static bool write(const int32_t* left_samples, const int32_t* right_samples, siz
 
 static void decoder_failed(void) {
     buffer_info.failed = true;
+    ESP_LOGW(TAG, "Decoder failed");
     decoder_config.decoder_failed_cb();
 }
 

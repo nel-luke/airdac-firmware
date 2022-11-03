@@ -225,6 +225,7 @@ static action_err_t SetAVTransportURI(char* arguments, char** response) {
         return Invalid_Args;
 
     xSemaphoreTake(avt_mutex, portMAX_DELAY);
+    avt_state.TransportStatus = STATUS_OK;
 
 //    if (strlen(avt_state.AVTransportURIMetaData) != 0)
 //        free(avt_state.AVTransportURIMetaData);
@@ -306,7 +307,7 @@ static action_err_t SetAVTransportURI(char* arguments, char** response) {
 
     xSemaphoreGive(avt_mutex);
 
-    state_changed(AVTRANSPORTURI | AVTRANSPORTURIMETADATA | CURRENTTRACKURI |
+    state_changed(TRANSPORTSTATUS | AVTRANSPORTURI | AVTRANSPORTURIMETADATA | CURRENTTRACKURI |
                 CURRENTTRACKMETADATA | CURRENTTRACKDURATION | CURRENTMEDIADURATION |
                 NUMBEROFTRACKS | CURRENTTRACK | TRANSPORTSTATE);
     return ret;
@@ -709,4 +710,12 @@ void av_transport_reset(void) {
     state_changed(AVTRANSPORTURI | AVTRANSPORTURIMETADATA | CURRENTTRACKURI |
                   CURRENTTRACKMETADATA | CURRENTTRACKDURATION | CURRENTMEDIADURATION |
                   NUMBEROFTRACKS | CURRENTTRACK | TRANSPORTSTATE);
+}
+
+void av_transport_error_occurred(void) {
+    xSemaphoreTake(avt_mutex, portMAX_DELAY);
+    avt_state.TransportStatus = STATUS_ERROR_OCCURRED;
+    xSemaphoreGive(avt_mutex);
+
+    state_changed(TRANSPORTSTATUS);
 }
