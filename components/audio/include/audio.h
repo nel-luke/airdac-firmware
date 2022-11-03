@@ -13,6 +13,7 @@ struct AudioDecoderConfig {
     audio_callback decoder_ready_cb;
     audio_callback decoder_finished_cb;
     audio_callback decoder_failed_cb;
+    void (*wrote_samples_cb)(uint32_t samples, uint32_t sample_rate);
 };
 typedef struct AudioDecoderConfig AudioDecoderConfig_t;
 
@@ -29,5 +30,7 @@ bool audio_init_decoder(const AudioDecoderConfig_t* config);
 //void audio_init_buffer(const AudioBufferConfig_t* config);
 void audio_decoder_continue(const uint8_t* new_buffer, size_t buffer_length);
 void audio_reset(void);
+void audio_pause_playback(void);
+void audio_resume_playback(void);
 
 #endif //AIRDAC_FIRMWARE_AUDIO_H

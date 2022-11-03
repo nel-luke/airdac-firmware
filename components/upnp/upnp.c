@@ -44,12 +44,12 @@ static void buffer_ready(void) {
 
 static void stream_finished(void) {
     ESP_LOGI(TAG, "Stream finished");
-    flag_event(STOP_DECODER);
+    flag_event(STOP_PLAYBACK);
 }
 
 static void stream_failed(void) {
     ESP_LOGW(TAG, "Stream failed");
-    flag_event(STOP_DECODER);
+    flag_event(STOP_PLAYBACK);
 }
 
 static void decoder_ready(void) {
@@ -59,12 +59,16 @@ static void decoder_ready(void) {
 
 static void decoder_finished(void) {
     ESP_LOGI(TAG, "Decoder finished");
-    flag_event(STOP_STREAMER);
+    flag_event(STOP_PLAYBACK);
 }
 
 static void decoder_failed(void) {
     ESP_LOGW(TAG, "Decoder failed!");
-    flag_event(STOP_STREAMER);
+    flag_event(STOP_PLAYBACK);
+}
+
+static void append_samples(uint32_t samples, uint32_t sample_rate) {
+    av_transport_update_counters(samples, sample_rate);
 }
 
 static httpd_handle_t start_webserver(void)
@@ -117,6 +121,7 @@ static void setup_streaming(void) {
             .decoder_ready_cb = decoder_ready,
             .decoder_finished_cb = decoder_finished,
             .decoder_failed_cb = decoder_failed,
+            .wrote_samples_cb = append_samples
     };
 
     if (audio_init_decoder(&decoder_config) != true) {
@@ -134,11 +139,10 @@ static void setup_streaming(void) {
 
     unflag_event(BUFFER_READY | DECODER_READY);
     audio_decoder_continue(buffer, buffer_length);
+    av_transport_stream_ready();
 }
 
-void service_events(void) {
-    uint32_t bits = get_events();
-
+static void service_eventing(uint32_t bits) {
     if (bits & AV_TRANSPORT_SEND_ALL) {
         unflag_event(AV_TRANSPORT_SEND_ALL);
         char* message = get_av_transport_all();
@@ -167,25 +171,29 @@ void service_events(void) {
         unflag_event(SEND_PROTOCOL_INFO);
         send_protocol_info();
     }
+}
 
-    if (bits & STOP_STREAMER) {
-        unflag_event(STOP_STREAMER);
-        ESP_LOGI(TAG, "Stopping streamer...");
+static void service_av_transport(uint32_t bits) {
+    if (bits & STOP_PLAYBACK) {
+        unflag_event(STOP_PLAYBACK);
+        ESP_LOGI(TAG, "Stopping");
+
+        if (bits & RESET_PLAYBACK) {
+            unflag_event(RESET_PLAYBACK);
+            av_transport_reset();
+        }
+
         stream_release_buffer();
-        stop_stream();
-        ESP_LOGI(TAG, "streamer Success!");
-        unflag_event(BUFFER_READY | DECODER_READY);
-    }
-
-    if (bits & STOP_DECODER) {
-        unflag_event(STOP_DECODER);
-        ESP_LOGI(TAG, "Stopping decoder...");
         audio_reset();
-        ESP_LOGI(TAG, "decoder Success!");
+        stop_stream();
         unflag_event(BUFFER_READY | DECODER_READY);
-    }
-
-    if ((bits & BUFFER_READY) && (bits & DECODER_READY)) {
+    } else if (bits & PAUSE_PLAYBACK) {
+        unflag_event(PAUSE_PLAYBACK);
+        audio_pause_playback();
+    } else if (bits & RESUME_PLAYBACK) {
+        unflag_event(RESUME_PLAYBACK);
+        audio_resume_playback();
+    } else if ((bits & BUFFER_READY) && (bits & DECODER_READY)) {
         unflag_event(BUFFER_READY | DECODER_READY);
         ESP_LOGD(TAG, "Servicing");
         stream_release_buffer();
@@ -193,14 +201,15 @@ void service_events(void) {
         size_t buffer_length;
         stream_take_buffer(&buffer, &buffer_length);
         audio_decoder_continue(buffer, buffer_length);
-//        stream_continue();
     } else if (bits & START_STREAMING) {
         unflag_event(START_STREAMING);
 
-        ESP_LOGI(TAG, "Start STREAMING!");
+        ESP_LOGI(TAG, "Preparing for playback");
         setup_streaming();
     }
+}
 
+static void service_other(uint32_t bits) {
     if (bits & EVENTING_CLEAN_SUBSCRIBERS) {
         unflag_event(EVENTING_CLEAN_SUBSCRIBERS);
         eventing_clean_subscribers();
@@ -214,7 +223,10 @@ void service_events(void) {
 
 _Noreturn void upnp_loop(void* args) {
     while (1) {
-        service_events();
+        uint32_t bits = get_events();
+        service_av_transport(bits);
+        service_eventing(bits);
+        service_other(bits);
 
         service_discovery();
     }
@@ -239,8 +251,8 @@ void upnp_start(size_t stack_size, int priority, int port, const char* ip_addr, 
     StreamConfig_t stream_config = {
             .port = port,
             .user_agent = useragent_STR,
-            .buffer_count = 4,
-            .buffer_length = 262144,
+            .buffer_count = 3,
+            .buffer_length = 524288,
             .buffer_ready = buffer_ready,
             .stream_finished = stream_finished,
             .stream_failed = stream_failed

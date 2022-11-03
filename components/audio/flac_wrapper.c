@@ -28,15 +28,12 @@ static FLAC__StreamDecoderWriteStatus write_callback(const FLAC__StreamDecoder *
     AudioContext_t* audio_ctx = ctx;
 
     unsigned short right_i = frame->header.channels == 2 ? 1 : 0;
-    audio_ctx->write(buffer[0], buffer[right_i], frame->header.blocksize, frame->header.sample_rate, frame->header.bits_per_sample);
-    return FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;
-}
 
-static void metadata_callback(const FLAC__StreamDecoder *decoder, const FLAC__StreamMetadata *metadata, void* ctx) {
-    if (metadata->type == FLAC__METADATA_TYPE_STREAMINFO) {
-        const FLAC__StreamMetadata_StreamInfo *md = &(metadata->data.stream_info);
-        AudioContext_t* audio_ctx = ctx;
-    }
+    bool ret = audio_ctx->write(buffer[0], buffer[right_i], frame->header.blocksize, frame->header.sample_rate, frame->header.bits_per_sample);
+    if (ret == false)
+        return FLAC__STREAM_DECODER_WRITE_STATUS_ABORT;
+
+    return FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;
 }
 
 static void error_callback(const FLAC__StreamDecoder *decoder, FLAC__StreamDecoderErrorStatus status, void* ctx) {
@@ -75,7 +72,7 @@ void run_flac_decoder(const AudioContext_t* audio_ctx) {
     FLAC__StreamDecoderInitStatus status = FLAC__stream_decoder_init_stream(decoder_ptr,
                                                                             read_callback, seek_callback, tell_callback,
                                                                             length_callback, eof_callback,
-                                                                            write_callback, metadata_callback,
+                                                                            write_callback, NULL,
                                                                             error_callback, audio_ctx);
     assert(status == FLAC__STREAM_DECODER_INIT_STATUS_OK);
 

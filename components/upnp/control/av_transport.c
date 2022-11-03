@@ -33,7 +33,7 @@
 #define CURRENTTRANSPORTACTIONS         BIT21
 static EventGroupHandle_t avt_events;
 
-//static const char TAG[] = "av_transport";
+static const char TAG[] = "av_transport";
 
 enum var_opt {
     NOT_IMPLEMENTED,
@@ -102,8 +102,8 @@ struct {
     char* NextAVTransportURI;
     char* NextAVTransportURIMetaData;
     char* CurrentTransportActions;
-    char RelativeTimePosition[9];
-    char AbsoluteTimePosition[9];
+    char RelativeTimePosition[13];
+    char AbsoluteTimePosition[13];
     int32_t RelativeCounterPosition;
     int32_t AbsoluteCounterPosition;
 //    char* LastChange;
@@ -133,8 +133,8 @@ struct {
         NULL,
         NULL,
         NULL,
-        "00:00:00",
-        "00:00:00",
+        "00:00:00.000",
+        "00:00:00.000",
         2147483647,
         2147483647,
         NULL,
@@ -148,27 +148,7 @@ static SemaphoreHandle_t avt_mutex;
 #define CHECK_VAR_STR(bit, name) CHECK_VAR_H(bit, #name, "%s", avt_state.name)
 #define INIT_STRING(name, var_opt_name) avt_state.name = (char*)var_opt_str[var_opt_name]
 
-static FileInfo_t buffer_info = {0 };
-
-void get_stream_info(FileInfo_t* info) {
-    xSemaphoreTake(avt_mutex, portMAX_DELAY);
-    memcpy(info, &buffer_info, sizeof(FileInfo_t));
-    xSemaphoreGive(avt_mutex);
-}
-
-void init_av_transport(void) {
-    avt_events = xEventGroupCreate();
-    avt_mutex = xSemaphoreCreateMutex();
-    xEventGroupSetBits(avt_events, ALL_EVENT_BITS);
-
-    INIT_STRING(CurrentTrackMetaData, NOT_IMPLEMENTED);
-    INIT_STRING(CurrentTrackURI, NOTHING);
-    INIT_STRING(AVTransportURI, NOTHING);
-    INIT_STRING(AVTransportURIMetaData, NOT_IMPLEMENTED);
-    INIT_STRING(NextAVTransportURI, NOTHING);
-    INIT_STRING(NextAVTransportURIMetaData, NOT_IMPLEMENTED);
-    INIT_STRING(CurrentTransportActions, AVAILABLE_ACTIONS);
-}
+static FileInfo_t buffer_info = { 0 };
 
 static char* av_transport_changes(uint32_t changed_variables) {
     char* response = NULL;
@@ -214,25 +194,9 @@ print_chars:
     return response;
 }
 
-inline char* get_av_transport_changes(void) {
-    uint32_t changed_variables = xEventGroupWaitBits(avt_events, ALL_EVENT_BITS, pdTRUE, pdFALSE, 0);
-    return av_transport_changes(changed_variables);
-}
-
-inline char* get_av_transport_all(void) {
-    return av_transport_changes(ALL_EVENT_BITS);
-}
-
 static inline void state_changed(uint32_t variables) {
     xEventGroupSetBits(avt_events, variables);
     flag_event(AV_TRANSPORT_CHANGED);
-}
-
-inline char* get_track_url(void) {
-    xSemaphoreTake(avt_mutex, portMAX_DELAY);
-    char* ret = strdup(avt_state.CurrentTrackURI);
-    xSemaphoreGive(avt_mutex);
-    return ret;
 }
 
 static bool get_stream_value(char* metadata, const char* search, uint32_t* value) {
@@ -284,16 +248,16 @@ static action_err_t SetAVTransportURI(char* arguments, char** response) {
 //        *mime_end = ' '; // Insert a non-zero character to allow searching again
 //    }
 //
-//    const char duration_search[] = "duration=\"";
-//    char* duration_start = strstr(CurrentURIMetaData, duration_search);
-//    if (duration_start != NULL) {
-//        duration_start += strlen(duration_search);
-//        char* duration_end = strstr(duration_start, "\"");
-//        *duration_end = '\0';
-//        strcpy(avt_state.CurrentMediaDuration, duration_start);
-//        strcpy(avt_state.CurrentTrackDuration, duration_start);
-//        *duration_end = ' ';
-//    }
+    const char duration_search[] = "duration=\"";
+    char* duration_start = strstr(CurrentURIMetaData, duration_search);
+    if (duration_start != NULL) {
+        duration_start += strlen(duration_search);
+        char* duration_end = strstr(duration_start, "\"");
+        *duration_end = '\0';
+        strcpy(avt_state.CurrentMediaDuration, duration_start);
+        strcpy(avt_state.CurrentTrackDuration, duration_start);
+        *duration_end = ' ';
+    }
 //
 //    bool success = true;
 //    success &= get_stream_value(CurrentURIMetaData, "size=\"", &buffer_info.file_size);
@@ -319,18 +283,26 @@ static action_err_t SetAVTransportURI(char* arguments, char** response) {
 
     avt_state.NumberOfTracks = 1;
     avt_state.CurrentTrack = 1;
+    avt_state.AbsoluteCounterPosition = 0;
+    avt_state.RelativeCounterPosition = 0;
+
+    avt_state.AbsoluteTimePosition[0] = '\0';
+    avt_state.RelativeTimePosition[0] = '\0';
+
     switch (avt_state.TransportState) {
         case STATE_NO_MEDIA_PRESENT:
+        case STATE_STOPPED:
             avt_state.TransportState = STATE_STOPPED;
-            flag_event(START_STREAMING);
             break;
         case STATE_PLAYING:
-            avt_state.TransportState = STATE_TRANSITIONING;
+        case STATE_PAUSED_PLAYBACK:
+            flag_event(STOP_PLAYBACK | START_STREAMING);
+            avt_state.TransportState = STATE_STOPPED;
             break;
         default:
-            ;
+            ESP_LOGE(TAG, "State %d invalid", avt_state.TransportState);
+            abort();
     }
-    flag_event(START_STREAMING);
 
     xSemaphoreGive(avt_mutex);
 
@@ -340,13 +312,12 @@ static action_err_t SetAVTransportURI(char* arguments, char** response) {
     return ret;
 }
 
-#include <esp_log.h>
 static action_err_t SetNextAVTransportURI(char* arguments, char** response) {
     ARG_START();
     GET_ARG(NextURI);
     GET_ARG(NextURIMetaData);
 
-    ESP_LOGI("NextURI", "I'm called!");
+    ESP_LOGE("NextURI", "I'm called!");
     if (NextURI == NULL || NextURIMetaData == NULL)
         return Invalid_Args;
 
@@ -371,7 +342,7 @@ static action_err_t SetNextAVTransportURI(char* arguments, char** response) {
 static action_err_t GetMediaInfo(char* arguments, char** response) {
     xSemaphoreTake(avt_mutex, portMAX_DELAY);
     char NrTracks[3];
-    itoa(avt_state.NumberOfTracks, NrTracks, 10);
+    itoa((int)avt_state.NumberOfTracks, NrTracks, 10);
     const char* MediaDuration = avt_state.CurrentMediaDuration;
     const char* CurrentURI = avt_state.AVTransportURI;
     const char* CurrentURIMetaData = avt_state.AVTransportURIMetaData;
@@ -456,6 +427,12 @@ static action_err_t Stop(char* arguments, char** response) {
             break;
         default:
             avt_state.TransportState = STATE_STOPPED;
+            flag_event(STOP_PLAYBACK | RESET_PLAYBACK);
+            avt_state.AbsoluteCounterPosition = 0;
+            avt_state.RelativeCounterPosition = 0;
+
+            avt_state.AbsoluteTimePosition[0] = '\0';
+            avt_state.RelativeTimePosition[0] = '\0';
     }
     xSemaphoreGive(avt_mutex);
 
@@ -470,9 +447,13 @@ static action_err_t Play(char* arguments, char** response) {
     if (strlen(avt_state.AVTransportURI) != 0) {
         switch (avt_state.TransportState) {
             case STATE_STOPPED:
+                avt_state.TransportState = STATE_TRANSITIONING;
+                flag_event(START_STREAMING);
+                break;
             case STATE_PLAYING:
             case STATE_PAUSED_PLAYBACK:
                 avt_state.TransportState = STATE_PLAYING;
+                flag_event(RESUME_PLAYBACK);
                 break;
             default:
                 ret = Cannot_Transition;
@@ -493,6 +474,7 @@ static action_err_t Pause(char* arguments, char** response) {
     switch (avt_state.TransportState) {
         case STATE_PLAYING:
             avt_state.TransportState = STATE_PAUSED_PLAYBACK;
+            flag_event(PAUSE_PLAYBACK);
             break;
         default:
             ret = Cannot_Transition;
@@ -547,6 +529,7 @@ static action_err_t Next(char* arguments, char** response) {
         case STATE_PLAYING:
         case STATE_STOPPED:
         case STATE_PAUSED_PLAYBACK:
+            avt_state.TransportState = STATE_TRANSITIONING;
             break;
         default:
             ret = Cannot_Transition;
@@ -579,6 +562,7 @@ static action_err_t SetPlayMode(char* arguments, char** response) {
 
     if (NewPlayMode == NULL)
         return Invalid_Args;
+
 //    xSemaphoreTake(avt_mutex, portMAX_DELAY);
 
 //    xSemaphoreGive(avt_mutex);
@@ -632,4 +616,97 @@ action_err_t av_transport_execute(const char* action_name, char* arguments, char
     }
 
     return err;
+}
+
+void av_transport_stream_ready(void) {
+    xSemaphoreTake(avt_mutex, portMAX_DELAY);
+    avt_state.TransportState = STATE_PLAYING;
+    xSemaphoreGive(avt_mutex);
+
+    state_changed(TRANSPORTSTATE);
+}
+
+void av_transport_update_counters(uint32_t samples, uint32_t sample_rate) {
+    xSemaphoreTake(avt_mutex, portMAX_DELAY);
+    avt_state.AbsoluteCounterPosition += (int)samples;
+    avt_state.RelativeCounterPosition += (int)samples;
+
+    double elapsed_seconds = (double)avt_state.RelativeCounterPosition / sample_rate;
+    unsigned int floor_seconds = floor(elapsed_seconds);
+    unsigned int milli = (int)((elapsed_seconds - floor_seconds)*1000) % 1000;
+    unsigned int seconds = floor_seconds % 60;
+    unsigned int floor_minutes = (floor_seconds - seconds) / 60;
+    unsigned int minutes = floor_minutes % 60;
+    unsigned int hours = ((floor_minutes - minutes) / 60) % 99;
+
+    sprintf(avt_state.AbsoluteTimePosition, "%02d:%02d:%02d.%03d", hours, minutes, seconds, milli);
+    sprintf(avt_state.RelativeTimePosition, "%02d:%02d:%02d.%03d", hours, minutes, seconds, milli);
+
+    xSemaphoreGive(avt_mutex);
+}
+
+void init_av_transport(void) {
+    avt_events = xEventGroupCreate();
+    avt_mutex = xSemaphoreCreateMutex();
+    xEventGroupSetBits(avt_events, ALL_EVENT_BITS);
+
+    INIT_STRING(CurrentTrackMetaData, NOT_IMPLEMENTED);
+    INIT_STRING(CurrentTrackURI, NOTHING);
+    INIT_STRING(AVTransportURI, NOTHING);
+    INIT_STRING(AVTransportURIMetaData, NOT_IMPLEMENTED);
+    INIT_STRING(NextAVTransportURI, NOTHING);
+    INIT_STRING(NextAVTransportURIMetaData, NOT_IMPLEMENTED);
+    INIT_STRING(CurrentTransportActions, AVAILABLE_ACTIONS);
+}
+
+void get_stream_info(FileInfo_t* info) {
+    xSemaphoreTake(avt_mutex, portMAX_DELAY);
+    memcpy(info, &buffer_info, sizeof(FileInfo_t));
+    xSemaphoreGive(avt_mutex);
+}
+
+inline char* get_track_url(void) {
+    xSemaphoreTake(avt_mutex, portMAX_DELAY);
+    char* ret = strdup(avt_state.CurrentTrackURI);
+    xSemaphoreGive(avt_mutex);
+    return ret;
+}
+
+inline char* get_av_transport_changes(void) {
+    uint32_t changed_variables = xEventGroupWaitBits(avt_events, ALL_EVENT_BITS, pdTRUE, pdFALSE, 0);
+    return av_transport_changes(changed_variables);
+}
+
+inline char* get_av_transport_all(void) {
+    return av_transport_changes(ALL_EVENT_BITS);
+}
+
+void av_transport_reset(void) {
+    xSemaphoreTake(avt_mutex, portMAX_DELAY);
+    free(avt_state.AVTransportURI);
+
+    if (avt_state.CurrentTrackURI != avt_state.AVTransportURI) {
+        free(avt_state.CurrentTrackURI);
+    }
+
+    avt_state.AVTransportURI = (char*)var_opt_str[NOTHING];
+    avt_state.CurrentTrackURI = (char*)var_opt_str[NOTHING];
+
+    avt_state.CurrentMediaDuration[0] = '\0';
+    avt_state.CurrentTrackDuration[0] = '\0';
+
+    avt_state.NumberOfTracks = 0;
+    avt_state.CurrentTrack = 0;
+    avt_state.AbsoluteCounterPosition = 0;
+    avt_state.RelativeCounterPosition = 0;
+
+    avt_state.AbsoluteTimePosition[0] = '\0';
+    avt_state.RelativeTimePosition[0] = '\0';
+
+    avt_state.TransportState = STATE_NO_MEDIA_PRESENT;
+    xSemaphoreGive(avt_mutex);
+
+    state_changed(AVTRANSPORTURI | AVTRANSPORTURIMETADATA | CURRENTTRACKURI |
+                  CURRENTTRACKMETADATA | CURRENTTRACKDURATION | CURRENTMEDIADURATION |
+                  NUMBEROFTRACKS | CURRENTTRACK | TRANSPORTSTATE);
 }

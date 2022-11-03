@@ -52,7 +52,6 @@ static void download_data(void) {
     stream_info.bytes_left -= read_len;
 
     if (stream_info.once == false && stream_info.download_i == stream_info.buffer_count-2) {
-        ESP_LOGI(TAG, "Releasing!");
         for (int i = 0; i < stream_info.download_i; i++)
             xSemaphoreGive(stream_info.buff_sems[i]);
 
@@ -108,10 +107,7 @@ void start_stream(const char* url, size_t file_size) {
     stream_info.ready_i = 0;
     stream_info.download_i = 0;
 
-//    stream_info.buff_sems = malloc(sizeof(SemaphoreHandle_t) * stream_info.buffer_count);
-//    stream_info.buffers = malloc(stream_info.buffer_count);
     for (int i = 0; i < stream_info.buffer_count; i++) {
-//        stream_info.buff_sems[i] = xSemaphoreCreateBinary();
         stream_info.buffers[i] = heap_caps_malloc(stream_info.buffer_length, MALLOC_CAP_SPIRAM);
         assert(stream_info.buffers[i] != NULL);
     }
@@ -142,16 +138,12 @@ void stop_stream(void) {
     xTaskNotify(stream_task, STOP_STREAM, eSetBits);
     xSemaphoreTake(stream_mutex, portMAX_DELAY);
 
-//    ESP_ERROR_CHECK(esp_http_client_flush_response(stream_info.client, NULL));
     ESP_ERROR_CHECK(esp_http_client_close(stream_info.client));
     ESP_ERROR_CHECK(esp_http_client_cleanup(stream_info.client));
 
     for (int i = 0; i < stream_info.buffer_count; i++) {
-//        vSemaphoreDelete(stream_info.buff_sems[i]);
         free(stream_info.buffers[i]);
     }
-//    free(stream_info.buffers);
-//    free(stream_info.buff_sems);
 
     xSemaphoreGive(stream_mutex);
 }
@@ -161,18 +153,14 @@ _Noreturn static void stream_loop(void* args) {
     while (1) {
         uint32_t bits;
         xTaskNotifyWait(0, ULONG_MAX, &bits, portMAX_DELAY);
-
         if (bits & STOP_STREAM) {
-            ESP_LOGI(TAG, "Stopping!");
             asm volatile("" ::: "memory");
+
             for (int i = 0; i < stream_info.buffer_count; i++) {
                 if (i != stream_info.download_i)
                     xSemaphoreTake(stream_info.buff_sems[i], portMAX_DELAY);
             }
-//            for (int i = 0; i < stream_info.buffer_count; i++) {
-//                if (i != stream_info.download_i)
-//                    xSemaphoreGive(stream_info.buff_sems[i]);
-//            }
+
             xSemaphoreGive(stream_mutex);
             ESP_LOGI(TAG, "Streamer stopped");
             continue;
@@ -208,8 +196,6 @@ void init_stream(size_t stack_size, int priority, const StreamConfig_t* config) 
     stream_info.buffers = malloc(stream_info.buffer_count);
     for (int i = 0; i < stream_info.buffer_count; i++) {
         stream_info.buff_sems[i] = xSemaphoreCreateBinary();
-//        stream_info.buffers[i] = heap_caps_malloc(stream_info.buffer_length, MALLOC_CAP_SPIRAM);
-//        assert(stream_info.buffers[i] != NULL);
     }
 
     stream_mutex = xSemaphoreCreateMutex();

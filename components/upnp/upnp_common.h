@@ -21,9 +21,10 @@
 #define START_STREAMING             BIT8
 #define BUFFER_READY                BIT9
 #define DECODER_READY               BIT10
-#define STOP_DECODER                BIT11
-#define STOP_STREAMER               BIT12
-#define METADATA_FINISHED           BIT13
+#define RESUME_PLAYBACK             BIT13
+#define PAUSE_PLAYBACK              BIT14
+#define STOP_PLAYBACK               BIT15
+#define RESET_PLAYBACK              BIT16
 
 #define ALL_EVENT_BITS     0x00FFFFFF
 

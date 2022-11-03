@@ -7,6 +7,9 @@
 #include <stdbool.h>
 
 void init_av_transport(void);
+void av_transport_update_counters(uint32_t samples, uint32_t sample_rate);
+void av_transport_stream_ready(void);
+void av_transport_reset(void);
 action_err_t av_transport_execute(const char* action_name, char* arguments, char** response);
 char* get_av_transport_changes(void);
 char* get_av_transport_all(void);
