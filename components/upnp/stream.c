@@ -69,6 +69,13 @@ void stream_get_content_info(const char* url, char* content_type, size_t* conten
     esp_http_client_handle_t head_request = esp_http_client_init(&head_config);
     esp_http_client_perform(head_request);
     *content_length = esp_http_client_get_content_length(head_request);
+
+    if (*content_length == (size_t)(-1)) {
+        ESP_LOGE(TAG, "Content-length not found");
+        *content_length = 0;
+        return;
+    }
+
     ESP_LOGI(TAG, "Content-type: %s | Content-length: %d", content_type, *content_length);
 
     ESP_ERROR_CHECK(esp_http_client_close(head_request));

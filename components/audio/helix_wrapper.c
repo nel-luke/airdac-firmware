@@ -14,13 +14,13 @@ static HAACDecoder decoder;
 
 static const char TAG[] = "audio_helix";
 
-struct aac_stat {
+static struct aac_stat {
     size_t buffer_size;
     uint8_t* frame_buffer;
     int16_t* pwm_buffer;
     bool active;
     uint32_t frame_counter;
-} static* stat;
+} *stat;
 
 //void run_helix_decoder(AudioContext_t* audio_ctx) {
 //    size_t bytes = 0;
@@ -92,13 +92,13 @@ struct Range {
     int end;
 };
 
-int findSynchWord(int offset) {
+static int findSynchWord(int offset) {
     int result = AACFindSyncWord(stat->frame_buffer+offset, stat->buffer_size-offset);
     return result < 0 ? result : result + offset;
 }
 
 /// returns valid start and end synch word.
-void synchronizeFrame(struct Range* range) {
+static void synchronizeFrame(struct Range* range) {
     range->start = findSynchWord(0);
     range->end = findSynchWord(range->start + SYNCH_WORD_LEN);
     ESP_LOGI(TAG, "-> frameRange -> %d - %d", range->start, range->end);
@@ -129,7 +129,7 @@ void synchronizeFrame(struct Range* range) {
 }
 
 /// decodes the data and removes the decoded frame from the buffer
-void decode(struct Range* r) {
+static bool decode(struct Range* r) {
     ESP_LOGI(TAG, "decode %d", r->end);
     int len = stat->buffer_size - r->start;
     int bytesLeft =  len;
@@ -169,21 +169,32 @@ void decode(struct Range* r) {
         }  else {
             stat->buffer_size = 0;
         }
+
+        return false;
     }
+
+    return true;
 }
 
 void run_helix_decoder(const AudioContext_t* ctx) {
     size_t start = 0;
     // we can not write more then the AAC_MAX_FRAME_SIZE
     size_t write_len = MIN(ctx->total_bytes(), AAC_MAX_FRAME_SIZE-stat->buffer_size);
-    while(start < ctx->total_bytes()){
+    while(start < ctx->total_bytes()) {
         // we have some space left in the buffer
         stat->buffer_size = ctx->fill_buffer(stat->frame_buffer, write_len);
+
+        if (stat->buffer_size == 0)
+            break;
+
         struct Range r;
         synchronizeFrame(&r);
         // Decode if we have a valid start and end synch word
         if( r.start >= 0 && r.end > r.start && (r.end - r.start)<=AAC_MAX_FRAME_SIZE) {
-            decode(&r);
+            if (decode(&r) == false) {
+                ctx->decoder_failed();
+                break;
+            }
         } else {
             ESP_LOGW(TAG, " -> invalid frame size: %d / max: %d", r.end-r.start, AAC_MAX_FRAME_SIZE);
         }
@@ -192,6 +203,7 @@ void run_helix_decoder(const AudioContext_t* ctx) {
         ESP_LOGI(TAG,"-> Written %zu of %zu - Counter %zu", start, ctx->total_bytes(), stat->frame_counter);
         write_len = MIN(ctx->bytes_elapsed(), AAC_MAX_FRAME_SIZE - stat->buffer_size);;
     }
+    AACFlushCodec(decoder);
 }
 
 void delete_helix_decoder(void) {
@@ -221,3 +233,9 @@ void init_helix_decoder(void) {
     memset(stat->pwm_buffer,0, AAC_MAX_OUTPUT_SIZE);
     stat->active = true;
 }
+
+const DecoderWrapper_t helix_wrapper = {
+        .init = init_helix_decoder,
+        .run = run_helix_decoder,
+        .delete = delete_helix_decoder
+};

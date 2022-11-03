@@ -76,7 +76,8 @@ void run_flac_decoder(const AudioContext_t* audio_ctx) {
                                                                             error_callback, audio_ctx);
     assert(status == FLAC__STREAM_DECODER_INIT_STATUS_OK);
 
-    FLAC__stream_decoder_process_until_end_of_stream(decoder_ptr);
+    if (FLAC__stream_decoder_process_until_end_of_stream(decoder_ptr) == true)
+        audio_ctx->decoder_finished();
 
     FLAC__bool b = FLAC__stream_decoder_finish(decoder_ptr);
     assert(b);
@@ -86,3 +87,9 @@ void init_flac_decoder(void) {
     decoder_ptr = FLAC__stream_decoder_new();
     assert (decoder_ptr != NULL);
 }
+
+const DecoderWrapper_t flac_wrapper = {
+        .init = init_flac_decoder,
+        .run = run_flac_decoder,
+        .delete = delete_flac_decoder
+};

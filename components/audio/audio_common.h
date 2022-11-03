@@ -22,4 +22,11 @@ struct AudioContext {
 };
 typedef struct AudioContext AudioContext_t;
 
+struct DecoderWrapper {
+    void (*init)(void);
+    void (*run)(const AudioContext_t* ctx);
+    void (*delete)(void);
+};
+typedef struct DecoderWrapper DecoderWrapper_t;
+
 #endif //AIRDAC_FIRMWARE_AUDIO_COMMON_H

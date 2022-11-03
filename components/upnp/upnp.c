@@ -84,7 +84,6 @@ static void setup_streaming(void) {
     }
 
     AudioDecoderConfig_t decoder_config = {
-            .content_type = content_type,
             .file_size = content_length,
             .decoder_ready_cb = decoder_ready,
             .decoder_finished_cb = playback_finished,
@@ -92,9 +91,10 @@ static void setup_streaming(void) {
             .wrote_samples_cb = append_samples
     };
 
-    if (audio_init_decoder(&decoder_config) != true) {
+    if (audio_init_decoder(content_type, &decoder_config) != true) {
         ESP_LOGW(TAG, "File type not supported");
-        // Stop AVTransport or something
+        av_transport_reset();
+        av_transport_error_occurred();
         return;
     }
 
@@ -143,7 +143,6 @@ static void service_eventing(uint32_t bits) {
 
 static void service_av_transport(uint32_t bits) {
     if (bits & STOP_PLAYBACK) {
-        unflag_event(STOP_PLAYBACK);
         ESP_LOGI(TAG, "Stopping");
 
         if (bits & RESET_PLAYBACK) {
@@ -154,7 +153,7 @@ static void service_av_transport(uint32_t bits) {
         stream_release_buffer();
         audio_reset();
         stop_stream();
-        unflag_event(BUFFER_READY | DECODER_READY);
+        unflag_event(STOP_PLAYBACK | BUFFER_READY | DECODER_READY);
     } else if (bits & PAUSE_PLAYBACK) {
         unflag_event(PAUSE_PLAYBACK);
         audio_pause_playback();

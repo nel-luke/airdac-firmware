@@ -36,6 +36,18 @@ static xTaskHandle audio_task;
 static SemaphoreHandle_t audio_mutex;
 static AudioDecoderConfig_t decoder_config;
 
+#define MAX_DECODERS 4
+static const struct {
+    const char* mime_type;
+    const DecoderWrapper_t* decoder;
+} decoders[MAX_DECODERS] = {
+        { "audio/flac", &flac_wrapper },
+        { "audio/x-flac", &flac_wrapper },
+        { "audio/mpeg", &mad_wrapper },
+        { "audio/aac", &helix_wrapper }
+};
+static const DecoderWrapper_t* current_decoder = NULL;
+
 static const unsigned int max_sample_rate = 48000;
 
 struct {
@@ -166,9 +178,6 @@ void audio_resume_playback(void) {
 void audio_reset(void) {
     xTaskNotify(audio_task, STOP_DECODER, eSetBits);
     xSemaphoreTake(audio_mutex, portMAX_DELAY);
-    delete_flac_decoder();
-//    delete_mad_decoder();
-//    delete_helix_decoder();
     free(buffer_info.write_buff);
     memset(&buffer_info, 0, sizeof(buffer_info));
     xSemaphoreGive(audio_mutex);
@@ -182,7 +191,6 @@ void audio_decoder_continue(const uint8_t* new_buffer, size_t buffer_length) {
 }
 
 static const AudioContext_t context = {
-//        .set_sample_rate = set_sample_rate,
         .fill_buffer = fill_buffer,
         .write = write,
         .decoder_failed = decoder_failed,
@@ -190,23 +198,33 @@ static const AudioContext_t context = {
         .total_bytes = total_bytes
 };
 
-bool audio_init_decoder(const AudioDecoderConfig_t* config) {
+bool audio_init_decoder(const char* content_type, const AudioDecoderConfig_t* config) {
     xSemaphoreTake(audio_mutex, portMAX_DELAY);
-    ESP_LOGI(TAG, "Initializing audio");
     // Search for content type
 
-    // if (strcmp(content_type, decoder[i])==0)
-    // if not found return false
-//    bool b = xSemaphoreTake(audio_mutex, 0);
-//    assert(b);
+    int i = 0;
+    while (i < MAX_DECODERS) {
+        if (strcmp(decoders[i].mime_type, content_type) == 0)
+            break;
+        i++;
+    }
+
+    if (i == MAX_DECODERS) {
+        ESP_LOGW(TAG, "Decoder not found");
+        return false;
+    }
+
+    if (current_decoder == decoders[i].decoder) {
+        ESP_LOGI(TAG, "Re-using previous decoder");
+    } else if (current_decoder != NULL) {
+        current_decoder->delete();
+    }
+
+    current_decoder = decoders[i].decoder;
+    current_decoder->init();
 
     memcpy(&decoder_config, config, sizeof(decoder_config));
     buffer_info.sample_rate = max_sample_rate;
-//    xSemaphoreGive(audio_mutex);
-
-    init_flac_decoder();
-//    init_mad_decoder();
-//    init_helix_decoder();
 
     xSemaphoreGive(audio_mutex);
     xTaskNotify(audio_task, RUN_DECODER, eSetBits);
@@ -223,9 +241,7 @@ _Noreturn static void audio_loop(void* args) {
             ESP_LOGI(TAG, "Starting decoder");
             asm volatile("" : : : "memory");
             xSemaphoreTake(audio_mutex, portMAX_DELAY);
-            run_flac_decoder(&context);
-//            run_mad_decoder(&context);
-//            run_helix_decoder(&context);
+            current_decoder->run(&context);
             i2s_zero_dma_buffer(I2S_NUM);
             xSemaphoreGive(audio_mutex);
             ESP_LOGI(TAG, "Decoder stopped");

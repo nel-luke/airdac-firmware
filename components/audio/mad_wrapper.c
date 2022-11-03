@@ -129,6 +129,7 @@ void run_mad_decoder(const AudioContext_t* audio_ctx) {
 //           mad->stream.freerate, (size_t)mad->stream.this_frame, (size_t)mad->stream.next_frame,
 //           mad->stream.md_len, mad->stream.options, mad->stream.error);
 
+    size_t total_read = 0;
     while (run) {
         enum mad_sig ret = run_mad();
 
@@ -139,9 +140,11 @@ void run_mad_decoder(const AudioContext_t* audio_ctx) {
                 stat->readsize = audio_ctx->fill_buffer(stat->buffstart + stat->remaining, stat->readsize);
                 if (stat->readsize == 0)
                     run = false;
+
+                total_read += stat->readsize;
                 break;
             case FLUSH_BUFFER:
-                audio_ctx->write(mad->synth.pcm.samples[0], mad->synth.pcm.channels == 1
+                run = audio_ctx->write(mad->synth.pcm.samples[0], mad->synth.pcm.channels == 1
                                                             ? mad->synth.pcm.samples[0] : mad->synth.pcm.samples[1],
                                  mad->synth.pcm.length, mad->synth.pcm.samplerate, 32);
                 break;
@@ -152,6 +155,11 @@ void run_mad_decoder(const AudioContext_t* audio_ctx) {
                 break;
             default:
                 abort();
+        }
+
+        if (total_read == audio_ctx->total_bytes()) {
+            audio_ctx->decoder_finished();
+            break;
         }
     }
 
@@ -178,3 +186,9 @@ void init_mad_decoder(void) {
     mad_synth_init(&mad->synth);
     mad_timer_reset(&mad->timer);
 }
+
+const DecoderWrapper_t mad_wrapper = {
+        .init = init_mad_decoder,
+        .run = run_mad_decoder,
+        .delete = delete_mad_decoder
+};
