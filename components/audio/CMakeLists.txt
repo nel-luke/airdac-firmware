@@ -9,6 +9,7 @@ set(COMPONENT_SRCS
         ./audio_common.c
         ./mad_wrapper.c
         ./helix_wrapper.c
+        ./wav_wrapper.c
         )
 
 register_component()

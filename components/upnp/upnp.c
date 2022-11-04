@@ -88,7 +88,7 @@ static void setup_streaming(void) {
             .decoder_ready_cb = decoder_ready,
             .decoder_finished_cb = playback_finished,
             .decoder_failed_cb = playback_failed,
-            .wrote_samples_cb = append_samples
+            .wrote_samples_cb = append_samples,
     };
 
     if (audio_init_decoder(content_type, &decoder_config) != true) {
@@ -219,9 +219,8 @@ void upnp_start(size_t stack_size, int priority, int port, const char* ip_addr, 
             .port = port,
             .user_agent = useragent_STR,
             .buffer_count = 3,
-            .buffer_length = 524288,
+            .buffer_length = 819200,
             .buffer_ready_cb = buffer_ready,
-            .stream_finished_cb = playback_finished,
             .stream_failed_cb = playback_failed
     };
     init_stream(stack_size, priority-1, &stream_config);

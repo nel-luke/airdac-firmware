@@ -16,9 +16,12 @@ static FLAC__StreamDecoderReadStatus read_callback(const FLAC__StreamDecoder *de
 {
     AudioContext_t* audio_ctx = ctx;
 
-    *bytes = audio_ctx->fill_buffer(buffer, *bytes);
-    if (*bytes == 0) {
+    size_t read = audio_ctx->fill_buffer(buffer, *bytes);
+    if (read == 0)
         return FLAC__STREAM_DECODER_READ_STATUS_ABORT;
+    else if (read < *bytes) {
+        *bytes = read;
+        return FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM;
     }
 
     return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
@@ -61,7 +64,8 @@ static FLAC__StreamDecoderLengthStatus length_callback(const FLAC__StreamDecoder
 }
 
 static FLAC__bool eof_callback(const FLAC__StreamDecoder *decoder, void* ctx) {
-    return false;
+    AudioContext_t* audio_ctx = ctx;
+    return audio_ctx->eof();
 }
 
 void delete_flac_decoder(void) {
@@ -76,10 +80,11 @@ void run_flac_decoder(const AudioContext_t* audio_ctx) {
                                                                             error_callback, audio_ctx);
     assert(status == FLAC__STREAM_DECODER_INIT_STATUS_OK);
 
-    if (FLAC__stream_decoder_process_until_end_of_stream(decoder_ptr) == true)
+    FLAC__bool b = FLAC__stream_decoder_process_until_end_of_stream(decoder_ptr);
+    if (b == true)
         audio_ctx->decoder_finished();
 
-    FLAC__bool b = FLAC__stream_decoder_finish(decoder_ptr);
+    b = FLAC__stream_decoder_finish(decoder_ptr);
     assert(b);
 }
 

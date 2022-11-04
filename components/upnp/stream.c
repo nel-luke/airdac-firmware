@@ -39,10 +39,6 @@ static struct {
 static inline void send_ready(void) {
     stream_info.buffer_ready_cb();
 }
-
-static inline void send_finished(void) {
-    stream_info.stream_finished_cb();
-}
     
 static inline void send_failed(void) {
     ESP_LOGW(TAG, "Streamer failed");
@@ -85,7 +81,7 @@ void stream_get_content_info(const char* url, char* content_type, size_t* conten
 static void download_data(void) {
     if (stream_info.bytes_left == 0) {
         ESP_LOGI(TAG, "Download finished!");
-        send_finished();
+        send_ready();
         return;
     }
 

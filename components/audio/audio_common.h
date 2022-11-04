@@ -12,13 +12,13 @@
 #define RESUME_DECODER                 BIT4
 
 struct AudioContext {
-//    void (*set_sample_rate)(size_t sample_rate);
     size_t (*fill_buffer)(uint8_t* encoded_buffer, size_t buff_len);
     bool (*write)(const int32_t* left_samples, const int32_t* right_samples, size_t sample_length, unsigned int sample_rate, unsigned int bit_depth);
-    void (*decoder_finished)(void);
     void (*decoder_failed)(void);
+    void (*decoder_finished)(void);
     size_t (*bytes_elapsed)(void);
     size_t (*total_bytes)(void);
+    bool (*eof)(void);
 };
 typedef struct AudioContext AudioContext_t;
 

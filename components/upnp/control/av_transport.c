@@ -75,7 +75,7 @@ static const char* var_opt_str[NUM_OPTS] = {
         "REL_TIME",
         "ABS_TIME",
         "X_DLNA_REL_BYTE",
-        "Play,Stop,Pause,Seek,Next,Previous",
+        "Play,Stop,Pause,Seek,Next,Previous,X_DLNA_SeekTime,X_DLNA_SeekByte",
         ""
 };
 
@@ -448,8 +448,10 @@ static action_err_t Play(char* arguments, char** response) {
     if (strlen(avt_state.AVTransportURI) != 0) {
         switch (avt_state.TransportState) {
             case STATE_STOPPED:
-                avt_state.TransportState = STATE_TRANSITIONING;
-                flag_event(START_STREAMING);
+                if (avt_state.TransportStatus == STATUS_OK) {
+                    avt_state.TransportState = STATE_TRANSITIONING;
+                    flag_event(START_STREAMING);
+                }
                 break;
             case STATE_PLAYING:
             case STATE_PAUSED_PLAYBACK:
@@ -715,7 +717,8 @@ void av_transport_reset(void) {
 void av_transport_error_occurred(void) {
     xSemaphoreTake(avt_mutex, portMAX_DELAY);
     avt_state.TransportStatus = STATUS_ERROR_OCCURRED;
+    avt_state.TransportState = STATE_STOPPED;
     xSemaphoreGive(avt_mutex);
 
-    state_changed(TRANSPORTSTATUS);
+    state_changed(TRANSPORTSTATUS | TRANSPORTSTATE);
 }

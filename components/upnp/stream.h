@@ -10,7 +10,6 @@
     size_t buffer_count;                \
     size_t buffer_length;               \
     void (*buffer_ready_cb)(void);         \
-    void (*stream_finished_cb)(void);      \
     void (*stream_failed_cb)(void);
 
 struct StreamConfig {

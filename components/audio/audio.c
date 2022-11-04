@@ -3,6 +3,7 @@
 #include "flac_wrapper.h"
 #include "mad_wrapper.h"
 #include "helix_wrapper.h"
+#include "wav_wrapper.h"
 
 #include <stdbool.h>
 #include <memory.h>
@@ -36,7 +37,7 @@ static xTaskHandle audio_task;
 static SemaphoreHandle_t audio_mutex;
 static AudioDecoderConfig_t decoder_config;
 
-#define MAX_DECODERS 4
+#define MAX_DECODERS 6
 static const struct {
     const char* mime_type;
     const DecoderWrapper_t* decoder;
@@ -44,7 +45,9 @@ static const struct {
         { "audio/flac", &flac_wrapper },
         { "audio/x-flac", &flac_wrapper },
         { "audio/mpeg", &mad_wrapper },
-        { "audio/aac", &helix_wrapper }
+        { "audio/aac", &helix_wrapper },
+        { "audio/wav", &wav_wrapper },
+        { "audio/x-wav", &wav_wrapper }
 };
 static const DecoderWrapper_t* current_decoder = NULL;
 
@@ -66,13 +69,14 @@ static inline void send_ready(void) {
 }
 
 void send_finished(void) {
+    ESP_LOGI(TAG, "Decoder finished");
     decoder_config.decoder_finished_cb();
 }
 
 static size_t fill_buffer(uint8_t* encoded_buffer, size_t buffer_length) {
     assert(buffer_length != 0);
 
-    if (buffer_info.failed)
+    if (buffer_info.failed || buffer_info.total_written == decoder_config.file_size)
         return 0;
 
     size_t len = buffer_length;
@@ -91,6 +95,7 @@ static size_t fill_buffer(uint8_t* encoded_buffer, size_t buffer_length) {
     }
 
     len = MIN(len, buffer_info.remaining_bytes);
+    len = MIN(len, decoder_config.file_size - buffer_info.total_written);
 
     buffer_info.remaining_bytes -= len;
 
@@ -98,9 +103,7 @@ static size_t fill_buffer(uint8_t* encoded_buffer, size_t buffer_length) {
     buffer_info.offset += len;
     buffer_info.total_written += len;
 
-    if (buffer_info.total_written == decoder_config.file_size) {
-        send_finished();
-    } else if (len < buffer_length){
+    if (len < buffer_length){
         size_t tmp = buffer_length - len;
         len += fill_buffer(encoded_buffer + len, tmp);
     }
@@ -124,7 +127,11 @@ static bool write(const int32_t* left_samples, const int32_t* right_samples, siz
         assert(buffer_info.write_buff != NULL);
     }
 
-    size_t shift = bit_depth == 24 ? 8 : 0;
+    size_t shift = 0;
+    if (bit_depth == 24)
+        shift = 8;
+    else if (bit_depth == 16)
+        shift = 16;
 
     int j = 0;
     for (int i = 0; i < sample_length; i++) {
@@ -142,8 +149,10 @@ static bool write(const int32_t* left_samples, const int32_t* right_samples, siz
         i2s_zero_dma_buffer(I2S_NUM);
         do {
             xTaskNotifyWait(0, (PAUSE_DECODER | STOP_DECODER | RESUME_DECODER), &bits, portMAX_DELAY);
+
             if (bits & STOP_DECODER)
                 return false;
+
         } while ((bits & RESUME_DECODER) == false);
     }
 
@@ -151,6 +160,15 @@ static bool write(const int32_t* left_samples, const int32_t* right_samples, siz
     size_t bytes_written;
     i2s_write(I2S_NUM, buffer_info.write_buff, 2*sample_length*sizeof(int32_t), &bytes_written, portMAX_DELAY);
     return true;
+}
+
+static bool eof(void) {
+    return buffer_info.total_written == decoder_config.file_size;
+}
+
+static void decoder_finished(void) {
+    ESP_LOGI(TAG, "Decoder finished");
+    decoder_config.decoder_finished_cb();
 }
 
 static void decoder_failed(void) {
@@ -194,8 +212,10 @@ static const AudioContext_t context = {
         .fill_buffer = fill_buffer,
         .write = write,
         .decoder_failed = decoder_failed,
+        .decoder_finished = decoder_finished,
         .bytes_elapsed = bytes_elapsed,
-        .total_bytes = total_bytes
+        .total_bytes = total_bytes,
+        .eof = eof
 };
 
 bool audio_init_decoder(const char* content_type, const AudioDecoderConfig_t* config) {

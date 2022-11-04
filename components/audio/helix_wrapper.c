@@ -4,7 +4,6 @@
 #include <sys/param.h>
 #include <memory.h>
 #include <esp_log.h>
-#include <driver/i2s.h>
 
 #define SYNCH_WORD_LEN 4
 #define AAC_MAX_OUTPUT_SIZE 1024 * 3
@@ -177,10 +176,15 @@ static bool decode(struct Range* r) {
 }
 
 void run_helix_decoder(const AudioContext_t* ctx) {
-    size_t start = 0;
+//    size_t start = 0;
     // we can not write more then the AAC_MAX_FRAME_SIZE
     size_t write_len = MIN(ctx->total_bytes(), AAC_MAX_FRAME_SIZE-stat->buffer_size);
-    while(start < ctx->total_bytes()) {
+    while (1) {
+        if (ctx->eof()) {
+            ctx->decoder_finished();
+            break;
+        }
+
         // we have some space left in the buffer
         stat->buffer_size = ctx->fill_buffer(stat->frame_buffer, write_len);
 
@@ -199,10 +203,10 @@ void run_helix_decoder(const AudioContext_t* ctx) {
             ESP_LOGW(TAG, " -> invalid frame size: %d / max: %d", r.end-r.start, AAC_MAX_FRAME_SIZE);
         }
         stat->frame_counter++;
-        start += stat->buffer_size;
-        ESP_LOGI(TAG,"-> Written %zu of %zu - Counter %zu", start, ctx->total_bytes(), stat->frame_counter);
+        ESP_LOGI(TAG,"-> Written %zu of %zu - Counter %zu", ctx->bytes_elapsed(), ctx->total_bytes(), stat->frame_counter);
         write_len = MIN(ctx->bytes_elapsed(), AAC_MAX_FRAME_SIZE - stat->buffer_size);;
     }
+
     AACFlushCodec(decoder);
 }
 
