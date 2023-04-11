@@ -219,7 +219,7 @@ void upnp_start(size_t stack_size, int priority, int port, const char* ip_addr, 
             .port = port,
             .user_agent = useragent_STR,
             .buffer_count = 3,
-            .buffer_length = 819200,
+            .buffer_length = 409600,
             .buffer_ready_cb = buffer_ready,
             .stream_failed_cb = playback_failed
     };

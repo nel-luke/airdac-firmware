@@ -16,7 +16,7 @@
 #include <freertos/event_groups.h>
 
 #define I2S_NUM     (0)
-#define WROVER_KIT
+//#define WROVER_KIT
 
 #ifdef WROVER_KIT
 #define I2S_WS      (GPIO_NUM_27)
