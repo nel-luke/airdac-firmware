@@ -25,7 +25,7 @@ static const char *TAG = "upnp";
 
 static struct {
     int port;
-    char ip_addr[IPADDR_STRLEN_MAX];
+    char ip_addr[IP4ADDR_STRLEN_MAX];
     char friendly_name[50];
     uuid_t uuid;
 } upnp_info;

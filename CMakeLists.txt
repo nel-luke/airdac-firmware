@@ -8,3 +8,4 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(airdac_firmware)
 
 target_add_binary_data(airdac_firmware.elf "./logo.png" TXT)
+idf_build_set_property(COMPILE_OPTIONS "-Wno-format" APPEND)

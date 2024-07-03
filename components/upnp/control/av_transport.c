@@ -144,7 +144,7 @@ struct {
 static SemaphoreHandle_t avt_mutex;
 
 #define CHECK_VAR_OPT(bit, name) CHECK_VAR_H(bit, #name, "%s", var_opt_str[avt_state.name])
-#define CHECK_VAR_INT(bit, name) CHECK_VAR_H(bit, #name, "%d", avt_state.name)
+#define CHECK_VAR_INT(bit, name) CHECK_VAR_H(bit, #name, "%lu", avt_state.name)
 #define CHECK_VAR_STR(bit, name) CHECK_VAR_H(bit, #name, "%s", avt_state.name)
 #define INIT_STRING(name, var_opt_name) avt_state.name = (char*)var_opt_str[var_opt_name]
 
